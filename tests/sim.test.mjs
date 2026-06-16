@@ -508,19 +508,24 @@ test("HTML defaults to all-ship WEZ rings and 60x maximum speed", () => {
 
 test("right panel renderer is fleet inventory focused", () => {
   const app = fs.readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
-  assert.match(app, /inventory-row/);
-  assert.match(app, /sunk/);
-  assert.match(app, /inventory-divider/);
+  // Pure panel/markup builders live in src/ui/view.js; the canvas overlay and
+  // wiring stay in app.js. Inventory/posture markup is asserted against the
+  // combined UI source so it survives that split.
+  const view = fs.readFileSync(new URL("../src/ui/view.js", import.meta.url), "utf8");
+  const ui = `${app}\n${view}`;
+  assert.match(ui, /inventory-row/);
+  assert.match(ui, /sunk/);
+  assert.match(ui, /inventory-divider/);
   assert.match(app, /right:\$\{rightInset\}px/);
   assert.match(app, /flex-direction:row-reverse/);
   assert.match(app, /cardsPerColumn/);
   assert.match(app, /availableHeight/);
-  assert.match(app, /agg-meter/);
+  assert.match(ui, /agg-meter/);
   assert.match(app, /AMBER/);
   assert.match(app, /copyLogToClipboard/);
   assert.match(app, /entry\.category === "anti_air"/);
-  assert.doesNotMatch(app, /<span>Class<\/span>|<span>Scenario<\/span>|<span>Heading<\/span>/);
-  assert.doesNotMatch(app, /LAST LAUNCH|LAST EFFECT/);
+  assert.doesNotMatch(ui, /<span>Class<\/span>|<span>Scenario<\/span>|<span>Heading<\/span>/);
+  assert.doesNotMatch(ui, /LAST LAUNCH|LAST EFFECT/);
 });
 
 test("fleet inventory styling is compact", () => {

@@ -6,9 +6,12 @@ as-is and run as native ES modules in the browser and in Node.
 ## Files
 
 - `app.js` — browser entry: canvas rendering, input, panels, sim controls.
+- `ui/view.js` — **pure** presentation helpers (coordinate transforms, panel
+  HTML builders, per-ship derived state). No DOM/canvas/global access, so it is
+  unit-tested directly in `tests/ui.test.mjs`. `app.js` imports from here.
 - `styles.css` — tactical UI layout and styling.
 - `sim.js` — **barrel only**. Re-exports the simulation core from `sim/`.
-  Consumers (`app.js`, tests) import from here; do not move logic back into it.
+  Consumers (`app.js`, `ui/`, tests) import from here; do not move logic into it.
 
 ## `sim/` — the simulation core (dependency order, low → high)
 
@@ -38,4 +41,6 @@ as-is and run as native ES modules in the browser and in Node.
   logic/guidance → `combat.js`; save-format field → `scenario.js`.
 - **Keep it deterministic.** Same seed + inputs ⇒ same result. Route all
   randomness through `sim.rng` (the seeded `Rng`), never `Math.random()`.
-- **Verify with `npm test`** after any change to `sim/`.
+- **Verify with `npm test`** after any change to `sim/` or `ui/`.
+- **`npm run bench`** reports ticks/sec by battle size and re-checks determinism;
+  CI (`.github/workflows/ci.yml`) runs `npm test` on every push/PR.

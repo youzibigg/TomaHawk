@@ -20,9 +20,21 @@ export function stepSim(sim, dt = 0.25) {
     return sim;
   }
   sim.time += dt;
-  // Pre-compute indexes for performance (avoid repeated O(n) filters)
+  // Pre-compute indexes for performance (avoid repeated O(n) filters/finds).
+  // These are pure lookup structures — they never draw RNG — so they do not
+  // affect deterministic output, only the cost of resolving entities by id.
   sim._aliveShips = sim.ships.filter((s) => s.alive);
   sim._aliveMissiles = sim.missiles.filter((m) => m.alive);
+  // id -> entity maps. Ships are stable for the whole tick (only their `alive`
+  // flag flips); missiles are snapshotted before this tick's launches, which is
+  // sufficient because a freshly launched missile is never another weapon's
+  // target on the same tick.
+  const shipById = new Map();
+  for (const s of sim.ships) shipById.set(s.id, s);
+  sim._shipById = shipById;
+  const missileById = new Map();
+  for (const m of sim.missiles) missileById.set(m.id, m);
+  sim._missileById = missileById;
   // Group missiles by target for fast lookup
   const mbt = new Map();
   for (const m of sim._aliveMissiles) {

@@ -5,6 +5,19 @@ All notable changes to this repository will be documented in this file.
 ## Unreleased
 
 ### Added
+- **CI**: `.github/workflows/ci.yml` runs `npm test` on every push/PR across Node 20/22 on Linux + Windows. `package.json` now declares `engines.node >= 20`.
+- `src/ui/view.js` — pure, DOM-free presentation helpers (coordinate transforms, panel HTML builders, per-ship derived state) extracted from `src/app.js`, with `tests/ui.test.mjs` covering them.
+- `scripts/bench.mjs` (`npm run bench`) — reports simulation ticks/sec by battle size and re-verifies determinism.
+- A wired-up **RULER** tool (button + `R` shortcut) for on-map range/bearing measurement.
+
+### Changed
+- Hot-path lookups in `src/sim/combat.js` now use per-tick id indexes (`_shipById`, `_missileById`, and the existing `_missilesByTarget`) instead of repeated linear `find`/`filter` scans. Pure lookup change — deterministic output is byte-identical (verified against the pre-change core across multiple seeds and 8-ship battles).
+- `src/app.js` slimmed: presentation helpers moved to `src/ui/view.js`; the duplicated `eventSeverity` now comes from the `sim.js` barrel.
+
+### Removed
+- Dead `waypoint` tool branch in `src/app.js` (manual steering — out of scope for an observer-only simulation).
+
+### Added (license & docs, earlier in this cycle)
 - `LICENSE` — the project is now released under the **PolyForm Noncommercial License 1.0.0** (free for any noncommercial use; commercial use, including resale, is not permitted). `package.json` declares `LicenseRef-PolyForm-Noncommercial-1.0.0`.
 - `.gitignore` for `node_modules`, runtime export files, and OS/editor cruft.
 - `src/README.md` — source layout and `src/sim/` module map.

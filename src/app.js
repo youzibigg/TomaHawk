@@ -6,11 +6,11 @@ import {
   SHIP_CLASSES,
   VISUAL_CONFIG,
   canRunScenario,
-  battleSummaryCounts,
   canAddAssets,
   createScenario,
   deleteShip,
   distance,
+  eventSeverity,
   exportAfterAction,
   formatLogLines,
   formatTime,
@@ -19,10 +19,18 @@ import {
   serializeScenario,
   setLoadout,
   stepSim,
-  usedCells,
-  vlsCapacity,
   weaponRangeEntries
 } from "./sim.js";
+import {
+  sideColor,
+  sideSoftColor,
+  shipHpState,
+  vlsLoadState,
+  renderBattleStatus,
+  inventoryHtml,
+  worldToScreen as projectWorldToScreen,
+  screenToWorld as projectScreenToWorld
+} from "./ui/view.js";
 
 const canvas = document.querySelector("#map");
 const ctx = canvas.getContext("2d");
@@ -86,91 +94,14 @@ function setPrimarySelection(ship) {
   selectedIds = new Set([ship.id]);
 }
 
+// Thin wrappers binding the pure transforms in ui/view.js to this module's
+// live camera + window viewport.
 function worldToScreen(p) {
-  return {
-    x: innerWidth / 2 + (p.x - camera.x) * camera.scale,
-    y: innerHeight / 2 + (p.y - camera.y) * camera.scale
-  };
+  return projectWorldToScreen(p, camera, innerWidth, innerHeight);
 }
 
 function screenToWorld(x, y) {
-  return {
-    x: (x - innerWidth / 2) / camera.scale + camera.x,
-    y: (y - innerHeight / 2) / camera.scale + camera.y
-  };
-}
-
-function sideColor(side) {
-  return side === SIDE.BLUE ? "#65a7ff" : "#ff6b63";
-}
-
-function sideSoftColor(side) {
-  return side === SIDE.BLUE ? "rgba(101,167,255,.18)" : "rgba(255,107,99,.16)";
-}
-
-function shipHpState(ship) {
-  const maxHp = Math.max(1, Math.ceil(ship.damageResist ?? 3));
-  const damage = Math.max(0, Math.round(ship.damage ?? 0));
-  const currentHp = Math.max(0, maxHp - damage);
-  return { currentHp, maxHp, damage };
-}
-
-function vlsLoadState(ship) {
-  const used = Math.max(0, Math.round(usedCells(ship.loadout)));
-  const cap = Math.max(1, Math.round(vlsCapacity(ship)));
-  const fill = Math.max(0, Math.min(1, used / cap));
-  return { used, cap, fill };
-}
-
-function displayCount(ship, missileId) {
-  const count = Number(ship?.loadout?.[missileId]);
-  if (!Number.isFinite(count)) return 0;
-  return Math.max(0, Math.round(count));
-}
-
-function commandPosture(sim, side) {
-  return sim.commandState?.get(side) ?? {
-    aggression: 0.5,
-    advantage: 0,
-    ownOffense: 0,
-    ownVls: 0,
-    ownPower: 0,
-    enemyOffenseEstimate: 0,
-    enemyVlsEstimate: 0,
-    enemyPower: 0,
-    targetBreadth: 1,
-    raidDepth: 2
-  };
-}
-
-function postureBar(side, posture) {
-  const label = side === SIDE.BLUE ? "B" : "R";
-  const pct = Math.round(posture.aggression * 100);
-  return `
-    <span class="${side === SIDE.BLUE ? "blue" : "red"} posture-chip">
-      ${label} AGG
-      <span class="agg-meter ${side === SIDE.BLUE ? "blue" : "red"}"><i style="width:${pct}%"></i></span>
-      <b>${pct}%</b>
-    </span>
-  `;
-}
-
-function renderBattleStatus(sim) {
-  const c = battleSummaryCounts(sim);
-  const bluePosture = commandPosture(sim, SIDE.BLUE);
-  const redPosture = commandPosture(sim, SIDE.RED);
-  return `
-    <span class="red">R ${c.redShips}</span>
-    <span class="blue">B ${c.blueShips}</span>
-    <span class="red">R HP ${c.redHp}/${c.redHpMax}</span>
-    <span class="blue">B HP ${c.blueHp}/${c.blueHpMax}</span>
-    <span class="red">R AS ${c.redAntiShip}</span>
-    <span class="red">R AA ${c.redAntiAir}</span>
-    <span class="blue">B AS ${c.blueAntiShip}</span>
-    <span class="blue">B AA ${c.blueAntiAir}</span>
-    ${postureBar(SIDE.RED, redPosture)}
-    ${postureBar(SIDE.BLUE, bluePosture)}
-  `;
+  return projectScreenToWorld(x, y, camera, innerWidth, innerHeight);
 }
 
 function worldSize(meters, minPx = 2, maxPx = 24, multiplier = TACTICAL_SYMBOL_SCALE) {
@@ -198,14 +129,6 @@ function reserveLabel(text, x, y, font, critical = false) {
   if (collides && !critical) return false;
   labelBoxes.push(box);
   return true;
-}
-
-function eventSeverity(text) {
-  if (/mission-killed|sinking|hit by/i.test(text)) return "kill";
-  if (/intercepted|destroyed incoming/i.test(text)) return "intercept";
-  if (/launched|queued/i.test(text)) return "launch";
-  if (/missed|failed|exhausted/i.test(text)) return "miss";
-  return "info";
 }
 
 function drawGrid() {
@@ -650,29 +573,7 @@ function renderPanels() {
   status.innerHTML = renderBattleStatus(sim);
   renderFocusStrip(ship);
   const orderedShips = [...sim.ships].sort((a, b) => a.side.localeCompare(b.side) || a.id.localeCompare(b.id));
-  const inventoryRows = [];
-  let lastSide = null;
-  for (const s of orderedShips) {
-    if (lastSide && s.side !== lastSide) inventoryRows.push(`<div class="inventory-divider" aria-hidden="true"></div>`);
-    const hp = shipHpState(s);
-    inventoryRows.push(`
-      <button class="inventory-row ${s.side.toLowerCase()} ${s.alive ? "" : "sunk"} ${selectedIds.has(s.id) ? "selected" : ""}" data-select-ship="${s.id}">
-        <span>${s.id}</span>
-        <b style="color:${hp.currentHp < hp.maxHp ? '#f7b955' : ''}">${hp.currentHp}/${hp.maxHp}</b>
-        <b>${Math.round(usedCells(s.loadout))}/${s.vlsCells ?? 96}</b>
-        <b>${displayCount(s, "SM-2MR")}</b>
-        <b>${displayCount(s, "SM-6")}</b>
-        <b>${displayCount(s, "ESSM")}</b>
-        <b>${displayCount(s, "MaritimeStrike")}</b>
-        <b>${displayCount(s, "TomahawkBlockV")}</b>
-      </button>
-    `);
-    lastSide = s.side;
-  }
-  unitTab.innerHTML = `
-    <div class="inventory-head"><span>SHIP</span><span>HP</span><span>VLS</span><span>SM2</span><span>SM6</span><span>ESSM</span><span>MSTK</span><span>TLAM</span></div>
-    ${inventoryRows.join("")}
-  `;
+  unitTab.innerHTML = inventoryHtml(orderedShips, (id) => selectedIds.has(id));
   const placementEnabled = canAddAssets(sim);
   document.querySelectorAll('[data-tool="blue"], [data-tool="red"], #ship-class').forEach((el) => {
     el.disabled = !placementEnabled;
@@ -775,11 +676,6 @@ canvas.addEventListener("pointerdown", (event) => {
     return;
   }
   const ship = pickShip(world);
-  if (tool === "waypoint" && selectedShip()) {
-    selectedShip().waypoint = world;
-    selectedShip().desiredSpeed = 22 * 0.514444;
-    return;
-  }
   if (ship) {
     setPrimarySelection(ship);
     if (sim.mode === SCENARIO_MODE.SETUP) {
@@ -934,6 +830,10 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     tool = "select";
     ruler = null;
+    document.querySelectorAll(".tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
+  }
+  if (event.key === "r" || event.key === "R") {
+    tool = "ruler";
     document.querySelectorAll(".tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
   }
   if ((event.key === "Delete" || event.key === "Backspace") && sim.mode === SCENARIO_MODE.SETUP) {
