@@ -58,10 +58,14 @@ const strings = {
   "detail.cic":   { en: "CIC",   zh: "战情" },
 
   // Ship class labels (for select and descriptions)
-  "ship.ddg":  { en: "Guided-Missile Destroyer", zh: "导弹驱逐舰" },
-  "ship.ccg":  { en: "Guided-Missile Cruiser",   zh: "导弹巡洋舰" },
-  "ship.bbg":  { en: "Guided-Missile Battleship", zh: "导弹战列舰" },
-  "ship.ffg":  { en: "Frigate",                   zh: "护卫舰" },
+  "ship.ddg":  { en: "DDG", zh: "驱逐舰" },
+  "ship.ccg":  { en: "CCG", zh: "巡洋舰" },
+  "ship.bbg":  { en: "BBG", zh: "战列舰" },
+  "ship.ffg":  { en: "FFG", zh: "护卫舰" },
+  "ship.desc.ddg":  { en: "Guided-Missile Destroyer", zh: "导弹驱逐舰" },
+  "ship.desc.ccg":  { en: "Guided-Missile Cruiser",   zh: "导弹巡洋舰" },
+  "ship.desc.bbg":  { en: "Guided-Missile Battleship", zh: "导弹战列舰" },
+  "ship.desc.ffg":  { en: "Frigate",                   zh: "护卫舰" },
 
   // Battle status bar
   "status.ships": { en: "Ships", zh: "舰" },
@@ -151,4 +155,10 @@ export function setLang(lang) {
 export function toggleLang() {
   currentLang = currentLang === "en" ? "zh" : "en";
   return currentLang;
+}
+
+/** Return the localized hull designator (e.g. DDG → 驱逐舰 in zh). */
+export function hullLabel(hull) {
+  const key = `ship.${(hull || "DDG").toLowerCase()}`;
+  return t(key);
 }

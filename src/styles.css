@@ -241,7 +241,7 @@ input:focus-visible {
 
 #right-panel.retracted {
   width: 24px;
-  right: 24px;
+  right: 128px;
   max-height: 32px;
   overflow: hidden;
   opacity: 0.72;
@@ -377,8 +377,8 @@ small,
 .inventory-head,
 .inventory-row {
   display: grid;
-  grid-template-columns: minmax(56px, 1.4fr) minmax(38px, 0.9fr) minmax(66px, 1.25fr) repeat(5, minmax(34px, 0.85fr));
-  column-gap: 6px;
+  grid-template-columns: minmax(50px, 1.4fr) minmax(34px, 0.9fr) minmax(59px, 1.25fr) repeat(5, minmax(31px, 0.85fr));
+  column-gap: 5px;
   align-items: center;
   width: 100%;
   min-width: 0;
@@ -754,7 +754,6 @@ small,
   color: #a9c6ce;
   font: 400 3px/1.04 var(--font-ui);
   letter-spacing: 0.05em;
-  overflow: hidden;
 }
 
 .ship-detail-heading {

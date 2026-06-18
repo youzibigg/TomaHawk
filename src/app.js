@@ -31,7 +31,7 @@ import {
   worldToScreen as projectWorldToScreen,
   screenToWorld as projectScreenToWorld
 } from "./ui/view.js";
-import { t, toggleLang, getLang } from "./ui/lang.js";
+import { t, toggleLang, getLang, hullLabel } from "./ui/lang.js";
 
 const canvas = document.querySelector("#map");
 const ctx = canvas.getContext("2d");
@@ -284,7 +284,7 @@ function drawScaledShip(ship) {
     ctx.fillStyle = color;
     ctx.font = canvasFont(VISUAL_CONFIG.shipLabelPx);
     const roleTag = ship.isOTC ? " ◈OTC" : ship.fleetRole === "AAWC" ? " ·AAWC" : "";
-    ctx.fillText(`${ship.hull || ship.id}${roleTag}`, p.x + len * 0.48 + 3, p.y - 5);
+    ctx.fillText(`${hullLabel(ship.hull)}${roleTag}`, p.x + len * 0.48 + 3, p.y - 5);
     ctx.restore();
   }
   if (ship.alive && ship.waypoint) {
@@ -494,7 +494,6 @@ function renderShipDetails() {
   if (!detailShips.length) { shipDetailOverlay.innerHTML = ''; return; }
   const cardWidth = 120;
   const cardGap = 2;
-  const columnGap = 4;
   const rightInset = 6;
   const y = 8;
   const availableHeight = innerHeight - y - 16;
@@ -523,7 +522,7 @@ function renderShipDetails() {
     `;
     return `<div class="ship-detail-card" style="--ship-accent:${color};--ship-card-width:${cardWidth}px">
       <div class="ship-detail-heading">
-        <b>${s.hull||'DDG'} ${s.id}</b>
+        <b>${hullLabel(s.hull)} ${s.id}</b>
         <span style="color:${hp.currentHp < hp.maxHp ? '#f7b955' : ''}">HP ${hp.currentHp}/${hp.maxHp}</span>
       </div>
       <div class="ship-detail-grid">

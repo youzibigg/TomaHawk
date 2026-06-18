@@ -531,7 +531,7 @@ test("right panel renderer is fleet inventory focused", () => {
 
 test("fleet inventory styling is compact", () => {
   const css = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
-  assert.match(css, /grid-template-columns:\s*minmax\(56px, 1\.4fr\) minmax\(38px, 0\.9fr\) minmax\(66px, 1\.25fr\) repeat\(5, minmax\(34px, 0\.85fr\)\);/);
+  assert.match(css, /grid-template-columns:\s*minmax\(50px, 1\.4fr\) minmax\(34px, 0\.9fr\) minmax\(59px, 1\.25fr\) repeat\(5, minmax\(31px, 0\.85fr\)\);/);
   assert.match(css, /font:\s*500 4\.3px var\(--font-mono\);/);
   assert.match(css, /font:\s*430 4\.6px var\(--font-mono\);/);
   assert.match(css, /justify-items:\s*center;/);

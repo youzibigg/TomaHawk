@@ -6,6 +6,7 @@
 // and is the first step of separating rendering from `src/app.js`.
 
 import { SIDE, usedCells, vlsCapacity, battleSummaryCounts } from "../sim.js";
+import { t, hullLabel } from "./lang.js";
 
 // --- colors ----------------------------------------------------------------
 
@@ -112,9 +113,10 @@ export function inventoryDividerHtml() {
 
 export function inventoryRowHtml(ship, selected = false) {
   const hp = shipHpState(ship);
+  const displayId = ship.id.replace(ship.hull, hullLabel(ship.hull));
   return `
       <button class="inventory-row ${ship.side.toLowerCase()} ${ship.alive ? "" : "sunk"} ${selected ? "selected" : ""}" data-select-ship="${ship.id}">
-        <span>${ship.id}</span>
+        <span>${displayId}</span>
         <b style="color:${hp.currentHp < hp.maxHp ? '#f7b955' : ''}">${hp.currentHp}/${hp.maxHp}</b>
         <b>${Math.round(usedCells(ship.loadout))}/${ship.vlsCells ?? 96}</b>
         <b>${displayCount(ship, "SM-2MR")}</b>
