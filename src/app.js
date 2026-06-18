@@ -31,6 +31,7 @@ import {
   worldToScreen as projectWorldToScreen,
   screenToWorld as projectScreenToWorld
 } from "./ui/view.js";
+import { t, toggleLang, getLang } from "./ui/lang.js";
 
 const canvas = document.querySelector("#map");
 const ctx = canvas.getContext("2d");
@@ -46,6 +47,7 @@ const eventLog = document.querySelector("#event-log");
 const toggleFeed = document.querySelector("#toggle-feed");
 const copyFireLog = document.querySelector("#copy-fire-log");
 const unitTab = document.querySelector("#unit-tab");
+const langToggle = document.querySelector("#lang-toggle");
 const shipDetailOverlay = document.createElement("div");
 shipDetailOverlay.id = "ship-detail-overlay";
 document.body.appendChild(shipDetailOverlay);
@@ -68,15 +70,16 @@ let selectedIds = new Set([sim.selectedId]);
 let last = performance.now();
 let labelBoxes = [];
 let feedCollapsed = false;
+let aboutOpen = false;
 const TACTICAL_SYMBOL_SCALE = 26;
 const CANVAS_FONT_FAMILY = '"Lato", "Segoe UI", Arial, sans-serif';
 const canvasFont = (px) => `${px}px ${CANVAS_FONT_FAMILY}`;
 const RUN_STATUS = {
-  ready: "SETUP READY",
-  invalid: "SETUP NEEDS BLUE+RED",
-  running: "RUNNING",
-  paused: "PAUSED",
-  ended: "ENDED"
+  get ready() { return t('status.ready'); },
+  get invalid() { return t('status.invalid'); },
+  get running() { return t('status.running'); },
+  get paused() { return t('status.paused'); },
+  get ended() { return t('status.ended'); }
 };
 
 function resize() {
@@ -489,14 +492,13 @@ function renderShipDetails() {
   // Build compact detail cards for selected ships (right-click+drag selected)
   const detailShips = sim.ships.filter(s => s.alive && selectedIds.has(s.id));
   if (!detailShips.length) { shipDetailOverlay.innerHTML = ''; return; }
-  const panelRect = document.querySelector("#right-panel")?.getBoundingClientRect();
-  const cardWidth = 140;
+  const cardWidth = 110;
   const cardGap = 2;
   const columnGap = 4;
   const rightInset = 6;
-  const y = Math.min(innerHeight - 220, Math.max(6, (panelRect?.bottom ?? 76) + 8));
+  const y = Math.min(innerHeight - 180, Math.max(6, 60));
   const availableHeight = Math.max(44, innerHeight - y - 6);
-  const cardHeight = 40;
+  const cardHeight = 34;
   const cardsPerColumn = Math.max(1, Math.floor((availableHeight + cardGap) / (cardHeight + cardGap)));
   const columns = [];
   for (let i = 0; i < detailShips.length; i += cardsPerColumn) columns.push(detailShips.slice(i, i + cardsPerColumn));
@@ -531,12 +533,12 @@ function renderShipDetails() {
         <span style="color:${hp.currentHp < hp.maxHp ? '#f7b955' : ''}">HP ${hp.currentHp}/${hp.maxHp}</span>
       </div>
       <div class="ship-detail-grid">
-        ${row("RADAR", rdr, `${Math.round(rdr*100)}%`)}
-        ${row("PROP", prop, `${Math.round(prop*100)}% ${(s.maxSpeed*(prop-hp.damage*(s.damageDegrade??0.22))/0.514444).toFixed(0)}kn`)}
-        ${row("VLS", vls.fill, `${Math.round(vls.fill*100)}% ${vls.used}/${vls.cap}c`, "load")}
-        ${row("FCS", fc, `ch:${Math.round((s.defenseChannels?.area??2)*fc)}/${Math.round((s.defenseChannels?.point??2)*fc)}`)}
-        ${row("CIWS", ciws, `${Math.round(ciws*100)}% ${s.ciwsAmmo??0}`)}
-        ${row("CIC", cic, `${Math.round(cic*100)}%`)}
+        ${row(t('detail.radar'), rdr, `${Math.round(rdr*100)}%`)}
+        ${row(t('detail.prop'), prop, `${Math.round(prop*100)}% ${(s.maxSpeed*(prop-hp.damage*(s.damageDegrade??0.22))/0.514444).toFixed(0)}kn`)}
+        ${row(t('detail.vls'), vls.fill, `${Math.round(vls.fill*100)}% ${vls.used}/${vls.cap}c`, "load")}
+        ${row(t('detail.fcs'), fc, `ch:${Math.round((s.defenseChannels?.area??2)*fc)}/${Math.round((s.defenseChannels?.point??2)*fc)}`)}
+        ${row(t('detail.ciws'), ciws, `${Math.round(ciws*100)}% ${s.ciwsAmmo??0}`)}
+        ${row(t('detail.cic'), cic, `${Math.round(cic*100)}%`)}
       </div>
     </div>`;
   };
@@ -552,6 +554,16 @@ function renderPanels() {
   clock.textContent = formatTime(sim.time);
   play.textContent = sim.mode === SCENARIO_MODE.SETUP || sim.paused ? "▶" : "Ⅱ";
   status.innerHTML = renderBattleStatus(sim);
+  document.querySelector('[data-tool="blue"]').textContent = t('tool.blue');
+  document.querySelector('[data-tool="red"]').textContent = t('tool.red');
+  document.querySelector('[data-tool="ruler"]').textContent = t('tool.ruler');
+  document.querySelector('#reset').textContent = t('tool.rev');
+  document.querySelector('#step').textContent = t('btn.step');
+  document.querySelector('#save').textContent = t('btn.save');
+  document.querySelector('#load').textContent = t('btn.load');
+  document.querySelector('#aar').textContent = t('btn.aar');
+  document.querySelector('#copy-log').textContent = t('btn.copyLog');
+  copyFireLog.textContent = t('console.copyFeed');
   const orderedShips = [...sim.ships].sort((a, b) => a.side.localeCompare(b.side) || a.id.localeCompare(b.id));
   unitTab.innerHTML = inventoryHtml(orderedShips, (id) => selectedIds.has(id));
   const placementEnabled = canAddAssets(sim);
@@ -799,9 +811,9 @@ async function copyLogToClipboard() {
       document.execCommand("copy");
       textarea.remove();
     }
-    status.textContent = `LOG COPIED · ${sim.events.length} lines`;
+    status.textContent = t('status.logCopied').replace('{n}', sim.events.length);
   } catch {
-    status.textContent = "LOG COPY FAILED";
+    status.textContent = t('status.logFailed');
   }
 }
 document.querySelector("#load").addEventListener("click", () => document.querySelector("#load-file").click());
@@ -820,6 +832,13 @@ document.querySelector("#load-file").addEventListener("change", async (event) =>
 
 window.addEventListener("keydown", (event) => {
   if (event.target instanceof HTMLInputElement) return;
+  if (aboutOpen) {
+    if (event.key === "Escape" || event.code === "Space") {
+      event.preventDefault();
+      toggleAbout();
+    }
+    return;
+  }
   if (event.code === "Space") {
     event.preventDefault();
     if (sim.mode === SCENARIO_MODE.SETUP) startScenario();
@@ -838,6 +857,14 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "r" || event.key === "R") {
     tool = "ruler";
     document.querySelectorAll(".tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
+  }
+  if (event.key === "Tab") {
+    event.preventDefault();
+    cycleShip();
+  }
+  if (event.key === "`" || event.key === "~") {
+    event.preventDefault();
+    setFeedCollapsed(!feedCollapsed);
   }
   if ((event.key === "Delete" || event.key === "Backspace") && sim.mode === SCENARIO_MODE.SETUP) {
     event.preventDefault();
@@ -869,4 +896,57 @@ document.body.addEventListener("input", (event) => {
 
 setFeedCollapsed(false);
 resize();
+
+// --- right panel collapse toggle -------------------------------------------
+const rpCollapseBtn = document.querySelector(".rp-collapse");
+if (rpCollapseBtn) {
+  rpCollapseBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    document.querySelector("#right-panel").classList.toggle("retracted");
+  });
+}
+
+// --- about overlay ---------------------------------------------------------
+const aboutOverlay = document.querySelector("#about-overlay");
+const aboutCloseBtn = document.querySelector("#about-close");
+let prevPaused = false;
+
+function toggleAbout() {
+  aboutOpen = !aboutOpen;
+  if (aboutOpen) {
+    prevPaused = sim.paused;
+    sim.paused = true;
+    aboutOverlay.hidden = false;
+  } else {
+    aboutOverlay.hidden = true;
+    sim.paused = prevPaused;
+  }
+}
+
+document.querySelector("#brand-panel").addEventListener("click", (e) => {
+  if (e.target.closest("#lang-toggle")) return;
+  toggleAbout();
+});
+if (aboutCloseBtn) aboutCloseBtn.addEventListener("click", toggleAbout);
+aboutOverlay.addEventListener("click", (e) => { if (e.target === aboutOverlay) toggleAbout(); });
+
+// --- language toggle -------------------------------------------------------
+if (langToggle) {
+  langToggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const next = toggleLang();
+    langToggle.textContent = t('lang.toggle');
+    render();
+  });
+}
+
+// --- ship cycling via Tab --------------------------------------------------
+function cycleShip() {
+  const alive = sim.ships.filter((s) => s.alive);
+  if (!alive.length) return;
+  const idx = alive.findIndex((s) => s.id === sim.selectedId);
+  const next = alive[(idx + 1) % alive.length];
+  setPrimarySelection(next);
+}
+
 requestAnimationFrame(tick);

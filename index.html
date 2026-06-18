@@ -11,7 +11,7 @@
       <canvas id="map" aria-label="TomaHawk tactical map"></canvas>
       <header id="brand-panel" class="panel" aria-label="TomaHawk naval sandbox">
         <div class="brand-wordmark">TOMAHAWK<span class="brand-version">v0.1</span></div>
-
+        <button id="lang-toggle" class="tool" title="中/EN">中</button>
       </header>
       <section id="left-rail" class="panel">
         <button data-tool="blue" class="tool blue" title="Add blue DDG">BLUE</button>
@@ -38,7 +38,7 @@
         <button id="filter-missiles" class="toggle-btn active">WEAPONS</button>
       </section>
       <section id="right-panel" class="panel">
-        <div class="panel-heading"><span>FORCE INVENTORY</span><span>LIVE ORDER</span></div>
+        <div class="panel-heading"><span>FORCE INVENTORY</span><span>LIVE ORDER</span><span class="rp-collapse" title="Collapse panel (Tab)">◁</span></div>
         <div id="unit-tab" class="tab-body"></div>
       </section>
       <section id="bottom-bar" class="panel">
@@ -75,6 +75,32 @@
         <div id="event-log"></div>
       </section>
     </main>
+    <div id="about-overlay" class="about-overlay" hidden>
+      <div class="about-card">
+        <h1>TOMAHAWK</h1>
+        <span class="about-version">Naval Sandbox v0.1</span>
+        <p>A real-time naval combat sandbox for experimenting with fleet compositions, doctrine settings, and tactical engagements. Place ships, configure loadouts and ROE, then watch the AI command structure execute multi-axis strike and defense plans.</p>
+        <h2>Controls</h2>
+        <div class="kb-grid">
+          <kbd>Space</kbd><span>Play / Pause simulation</span>
+          <kbd>.</kbd><span>Step forward 0.25 s</span>
+          <kbd>Esc</kbd><span>Cancel tool / deselect</span>
+          <kbd>R</kbd><span>Activate ruler tool</span>
+          <kbd>Tab</kbd><span>Cycle selected ship</span>
+          <kbd>~</kbd><span>Toggle tactical feed</span>
+          <kbd>Del</kbd><span>Delete selected (setup only)</span>
+          <kbd>LMB</kbd><span>Select ship / place unit</span>
+          <kbd>RMB</kbd><span>Add to selection / box select</span>
+          <kbd>MMB</kbd><span>Pan map</span>
+          <kbd>Scroll</kbd><span>Zoom in / out</span>
+        </div>
+        <h2>Mechanics</h2>
+        <p><b style="color:var(--blue)">Blue</b> vs <b style="color:var(--red)">Red</b> fleets. Each ship has a VLS cell count, subsystem health (radar, propulsion, fire control, CIWS, CIC), and doctrine settings that control engagement behavior.</p>
+        <p>Weapons: <b>SM-2MR</b> (area AA), <b>SM-6</b> (long-range AA/AS), <b>ESSM</b> (point defense), <b>MaritimeStrike</b> (ASuW), <b>TLAM</b> (land attack). CIWS provides a last-ditch defense against incoming missiles.</p>
+        <p>The command AI assesses force balance and adjusts aggression automatically. Right-click ships to inspect subsystem details in real time.</p>
+        <button class="about-close" id="about-close">CLOSE</button>
+      </div>
+    </div>
     <script type="module" src="src/app.js"></script>
   </body>
 </html>
