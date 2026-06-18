@@ -492,19 +492,13 @@ function renderShipDetails() {
   // Build compact detail cards for selected ships (right-click+drag selected)
   const detailShips = sim.ships.filter(s => s.alive && selectedIds.has(s.id));
   if (!detailShips.length) { shipDetailOverlay.innerHTML = ''; return; }
-  const cardWidth = 110;
+  const cardWidth = 120;
   const cardGap = 2;
   const columnGap = 4;
   const rightInset = 6;
-  const y = Math.min(innerHeight - 180, Math.max(6, 60));
-  const availableHeight = Math.max(44, innerHeight - y - 6);
-  const cardHeight = 34;
-  const cardsPerColumn = Math.max(1, Math.floor((availableHeight + cardGap) / (cardHeight + cardGap)));
-  const columns = [];
-  for (let i = 0; i < detailShips.length; i += cardsPerColumn) columns.push(detailShips.slice(i, i + cardsPerColumn));
-  const totalWidth = columns.length * cardWidth + Math.max(0, columns.length - 1) * columnGap;
-  const overlayWidth = Math.max(cardWidth, Math.min(innerWidth - rightInset - 6, totalWidth));
-  shipDetailOverlay.style.cssText = `position:fixed;right:${rightInset}px;top:${y}px;z-index:100;width:${overlayWidth}px;max-height:${availableHeight}px;display:flex;flex-direction:row-reverse;justify-content:flex-start;align-items:flex-start;gap:${columnGap}px;`;
+  const y = 8;
+  const availableHeight = innerHeight - y - 16;
+  shipDetailOverlay.style.cssText = `position:fixed;right:${rightInset}px;top:${y}px;z-index:100;width:${cardWidth}px;max-height:${availableHeight}px;display:flex;flex-direction:column;align-items:stretch;gap:${cardGap}px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color: rgba(142,193,205,0.25) transparent;`;
 
   const cardHtml = (s) => {
     const rdr = s.subsystems?.radar ?? 1.0;
@@ -542,30 +536,32 @@ function renderShipDetails() {
       </div>
     </div>`;
   };
-  shipDetailOverlay.innerHTML = columns.map((column) => `
-    <div style="display:flex;flex-direction:column;gap:${cardGap}px;flex:0 0 ${cardWidth}px;min-width:${cardWidth}px;max-width:${cardWidth}px">
-      ${column.map((s) => cardHtml(s)).join('')}
-    </div>
-  `).join('');
+  shipDetailOverlay.innerHTML = detailShips.map(s => cardHtml(s)).join('');
 }
 
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach((el) => {
+    el.title = t(el.getAttribute('data-i18n-title'));
+  });
+  const invHead = unitTab.querySelector('.inventory-head');
+  if (invHead) {
+    const spans = invHead.querySelectorAll('span');
+    const keys = ['inv.ship','inv.hp','inv.vls','inv.sm2','inv.sm6','inv.essm','inv.mstk','inv.tlam'];
+    spans.forEach((sp, i) => { if (keys[i]) sp.textContent = t(keys[i]); });
+  }
+}
 
 function renderPanels() {
   clock.textContent = formatTime(sim.time);
   play.textContent = sim.mode === SCENARIO_MODE.SETUP || sim.paused ? "▶" : "Ⅱ";
   status.innerHTML = renderBattleStatus(sim);
-  document.querySelector('[data-tool="blue"]').textContent = t('tool.blue');
-  document.querySelector('[data-tool="red"]').textContent = t('tool.red');
-  document.querySelector('[data-tool="ruler"]').textContent = t('tool.ruler');
-  document.querySelector('#reset').textContent = t('tool.rev');
-  document.querySelector('#step').textContent = t('btn.step');
-  document.querySelector('#save').textContent = t('btn.save');
-  document.querySelector('#load').textContent = t('btn.load');
-  document.querySelector('#aar').textContent = t('btn.aar');
-  document.querySelector('#copy-log').textContent = t('btn.copyLog');
-  copyFireLog.textContent = t('console.copyFeed');
   const orderedShips = [...sim.ships].sort((a, b) => a.side.localeCompare(b.side) || a.id.localeCompare(b.id));
   unitTab.innerHTML = inventoryHtml(orderedShips, (id) => selectedIds.has(id));
+  applyI18n();
   const placementEnabled = canAddAssets(sim);
   document.querySelectorAll('[data-tool="blue"], [data-tool="red"], #ship-class').forEach((el) => {
     el.disabled = !placementEnabled;
@@ -934,8 +930,9 @@ aboutOverlay.addEventListener("click", (e) => { if (e.target === aboutOverlay) t
 if (langToggle) {
   langToggle.addEventListener("click", (e) => {
     e.stopPropagation();
-    const next = toggleLang();
+    toggleLang();
     langToggle.textContent = t('lang.toggle');
+    applyI18n();
     render();
   });
 }

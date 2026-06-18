@@ -229,8 +229,8 @@ input:focus-visible {
 
 #right-panel {
   top: 8px;
-  right: 8px;
-  width: min(460px, calc(100vw - 54px));
+  right: 128px;
+  width: min(460px, calc(100vw - 180px));
   max-height: calc(100vh - 82px);
   overflow: auto;
   border-color: var(--panel-strong);
@@ -241,6 +241,7 @@ input:focus-visible {
 
 #right-panel.retracted {
   width: 24px;
+  right: 24px;
   max-height: 32px;
   overflow: hidden;
   opacity: 0.72;
@@ -751,7 +752,7 @@ small,
   border-radius: 3px;
   background: rgba(8, 22, 29, 0.94);
   color: #a9c6ce;
-  font: 400 3.4px/1.04 var(--font-ui);
+  font: 400 3px/1.04 var(--font-ui);
   letter-spacing: 0.05em;
   overflow: hidden;
 }
@@ -774,8 +775,8 @@ small,
 
 .ship-detail-grid {
   display: grid;
-  grid-template-columns: 16px 1fr 32px;
-  gap: 1px 2px;
+  grid-template-columns: 14px 1fr 28px;
+  gap: 0.5px 2px;
   align-items: center;
 }
 
@@ -789,7 +790,7 @@ small,
 
 .ship-detail-grid > span {
   color: #8fc7d7;
-  font-size: 3.2px;
+  font-size: 2.8px;
   letter-spacing: 0.04em;
 }
 
@@ -797,13 +798,13 @@ small,
   color: #d3e8ed;
   font-weight: 500;
   text-align: right;
-  font-size: 3.2px;
+  font-size: 2.8px;
 }
 
 .subsystem-meter {
   display: block;
   width: 100%;
-  height: 2px;
+  height: 1.5px;
   overflow: hidden;
   border-radius: 1px;
   background: rgba(142, 193, 205, 0.14);

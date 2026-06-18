@@ -14,38 +14,38 @@
         <button id="lang-toggle" class="tool" title="中/EN">中</button>
       </header>
       <section id="left-rail" class="panel">
-        <button data-tool="blue" class="tool blue" title="Add blue DDG">BLUE</button>
-        <button data-tool="red" class="tool red" title="Add red DDG">RED</button>
-        <select id="ship-class" class="tool" title="Ship class for placement">
+        <button data-tool="blue" class="tool blue" title="Add blue DDG" data-i18n-title="place.addBlue">BLUE</button>
+        <button data-tool="red" class="tool red" title="Add red DDG" data-i18n-title="place.addRed">RED</button>
+        <select id="ship-class" class="tool" title="Ship class for placement" data-i18n-title="place.class">
           <option value="DDG">DDG</option>
           <option value="CCG">CCG</option>
           <option value="BBG">BBG</option>
           <option value="FFG">FFG</option>
         </select>
-        <button data-tool="ruler" class="tool" title="Measure range/bearing (R)">RULER</button>
-        <button id="reset" class="tool" title="Revert scenario">REV</button>
+        <button data-tool="ruler" class="tool" title="Measure range/bearing (R)" data-i18n-title="place.measure">RULER</button>
+        <button id="reset" class="tool" title="Revert scenario" data-i18n-title="place.revert">REV</button>
       </section>
       <section id="map-options" class="panel">
-        <button id="filter-grid" class="toggle-btn active">GRID</button>
-        <button id="filter-tracks" class="toggle-btn active">TRACKS</button>
-        <button id="filter-radar" class="toggle-btn">RADAR</button>
-        <button id="filter-ranges" class="toggle-btn active">WEZ</button>
+        <button id="filter-grid" class="toggle-btn active" data-i18n="opt.grid">GRID</button>
+        <button id="filter-tracks" class="toggle-btn active" data-i18n="opt.tracks">TRACKS</button>
+        <button id="filter-radar" class="toggle-btn" data-i18n="opt.radar">RADAR</button>
+        <button id="filter-ranges" class="toggle-btn active" data-i18n="opt.wez">WEZ</button>
         <select id="ranges-mode" title="Weapon range ring mode">
-          <option value="all" selected>ALL</option>
-          <option value="selected">SEL</option>
-          <option value="off">OFF</option>
+          <option value="all" selected data-i18n="opt.all">ALL</option>
+          <option value="selected" data-i18n="opt.sel">SEL</option>
+          <option value="off" data-i18n="opt.off">OFF</option>
         </select>
-        <button id="filter-missiles" class="toggle-btn active">WEAPONS</button>
+        <button id="filter-missiles" class="toggle-btn active" data-i18n="opt.weapons">WEAPONS</button>
       </section>
       <section id="right-panel" class="panel">
-        <div class="panel-heading"><span>FORCE INVENTORY</span><span>LIVE ORDER</span><span class="rp-collapse" title="Collapse panel (Tab)">◁</span></div>
+        <div class="panel-heading"><span data-i18n="panel.forceInventory">FORCE INVENTORY</span><span data-i18n="panel.liveOrder">LIVE ORDER</span><span class="rp-collapse" title="Collapse panel (Tab)" data-i18n-title="place.collapse">◁</span></div>
         <div id="unit-tab" class="tab-body"></div>
       </section>
       <section id="bottom-bar" class="panel">
         <div class="transport-controls">
           <button id="play" aria-label="Play or pause simulation">▶</button>
-          <button id="step">STEP</button>
-          <label>SPD <input id="speed" type="range" min="1" max="60" value="8" /></label>
+          <button id="step" data-i18n="btn.step">STEP</button>
+          <label data-i18n="btn.speed">SPD <input id="speed" type="range" min="1" max="60" value="8" /></label>
           <span id="clock">00:00</span>
         </div>
         <div class="tactical-readout">
@@ -53,23 +53,23 @@
           <span id="status">Place one blue and one red ship, then press play.</span>
         </div>
         <div class="data-actions">
-          <button id="save">SAVE</button>
-          <button id="load">LOAD</button>
-          <button id="aar">AAR</button>
-          <button id="copy-log">COPY LOG</button>
+          <button id="save" data-i18n="btn.save">SAVE</button>
+          <button id="load" data-i18n="btn.load">LOAD</button>
+          <button id="aar" data-i18n="btn.aar">AAR</button>
+          <button id="copy-log" data-i18n="btn.copyLog">COPY LOG</button>
         </div>
         <input id="load-file" type="file" accept="application/json" hidden />
       </section>
       <section id="event-console" class="panel">
         <div class="console-heading">
-          <span>TACTICAL FEED</span>
+          <span data-i18n="console.tacticalFeed">TACTICAL FEED</span>
           <div class="console-actions">
             <button id="toggle-feed" aria-expanded="true" title="Toggle tactical feed">
               <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
                 <path d="M1 3L4 6L7 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
-            <button id="copy-fire-log">COPY FEED</button>
+            <button id="copy-fire-log" data-i18n="console.copyFeed">COPY FEED</button>
           </div>
         </div>
         <div id="event-log"></div>
@@ -77,28 +77,28 @@
     </main>
     <div id="about-overlay" class="about-overlay" hidden>
       <div class="about-card">
-        <h1>TOMAHAWK</h1>
-        <span class="about-version">Naval Sandbox v0.1</span>
-        <p>A real-time naval combat sandbox for experimenting with fleet compositions, doctrine settings, and tactical engagements. Place ships, configure loadouts and ROE, then watch the AI command structure execute multi-axis strike and defense plans.</p>
-        <h2>Controls</h2>
+        <h1 data-i18n="about.title">TOMAHAWK</h1>
+        <span class="about-version" data-i18n="about.subtitle">Naval Sandbox v0.1</span>
+        <p data-i18n="about.desc1">A real-time naval combat sandbox for experimenting with fleet compositions, doctrine settings, and tactical engagements. Place ships, configure loadouts and ROE, then watch the AI command structure execute multi-axis strike and defense plans.</p>
+        <h2 data-i18n="about.h2controls">Controls</h2>
         <div class="kb-grid">
-          <kbd>Space</kbd><span>Play / Pause simulation</span>
-          <kbd>.</kbd><span>Step forward 0.25 s</span>
-          <kbd>Esc</kbd><span>Cancel tool / deselect</span>
-          <kbd>R</kbd><span>Activate ruler tool</span>
-          <kbd>Tab</kbd><span>Cycle selected ship</span>
-          <kbd>~</kbd><span>Toggle tactical feed</span>
-          <kbd>Del</kbd><span>Delete selected (setup only)</span>
-          <kbd>LMB</kbd><span>Select ship / place unit</span>
-          <kbd>RMB</kbd><span>Add to selection / box select</span>
-          <kbd>MMB</kbd><span>Pan map</span>
-          <kbd>Scroll</kbd><span>Zoom in / out</span>
+          <kbd>Space</kbd><span data-i18n="about.kbSpace">Play / Pause simulation</span>
+          <kbd>.</kbd><span data-i18n="about.kbDot">Step forward 0.25 s</span>
+          <kbd>Esc</kbd><span data-i18n="about.kbEsc">Cancel tool / deselect</span>
+          <kbd>R</kbd><span data-i18n="about.kbR">Activate ruler tool</span>
+          <kbd>Tab</kbd><span data-i18n="about.kbTab">Cycle selected ship</span>
+          <kbd>~</kbd><span data-i18n="about.kbTilde">Toggle tactical feed</span>
+          <kbd>Del</kbd><span data-i18n="about.kbDel">Delete selected (setup only)</span>
+          <kbd>LMB</kbd><span data-i18n="about.kbLmb">Select ship / place unit</span>
+          <kbd>RMB</kbd><span data-i18n="about.kbRmb">Add to selection / box select</span>
+          <kbd>MMB</kbd><span data-i18n="about.kbMmb">Pan map</span>
+          <kbd>Scroll</kbd><span data-i18n="about.kbScroll">Zoom in / out</span>
         </div>
-        <h2>Mechanics</h2>
-        <p><b style="color:var(--blue)">Blue</b> vs <b style="color:var(--red)">Red</b> fleets. Each ship has a VLS cell count, subsystem health (radar, propulsion, fire control, CIWS, CIC), and doctrine settings that control engagement behavior.</p>
-        <p>Weapons: <b>SM-2MR</b> (area AA), <b>SM-6</b> (long-range AA/AS), <b>ESSM</b> (point defense), <b>MaritimeStrike</b> (ASuW), <b>TLAM</b> (land attack). CIWS provides a last-ditch defense against incoming missiles.</p>
-        <p>The command AI assesses force balance and adjusts aggression automatically. Right-click ships to inspect subsystem details in real time.</p>
-        <button class="about-close" id="about-close">CLOSE</button>
+        <h2 data-i18n="about.h2mechanics">Mechanics</h2>
+        <p data-i18n="about.descMech1"><b style="color:var(--blue)">Blue</b> vs <b style="color:var(--red)">Red</b> fleets. Each ship has a VLS cell count, subsystem health (radar, propulsion, fire control, CIWS, CIC), and doctrine settings that control engagement behavior.</p>
+        <p data-i18n="about.descMech2">Weapons: <b>SM-2MR</b> (area AA), <b>SM-6</b> (long-range AA/AS), <b>ESSM</b> (point defense), <b>MaritimeStrike</b> (ASuW), <b>TLAM</b> (land attack). CIWS provides a last-ditch defense against incoming missiles.</p>
+        <p data-i18n="about.descMech3">The command AI assesses force balance and adjusts aggression automatically. Right-click ships to inspect subsystem details in real time.</p>
+        <button class="about-close" id="about-close" data-i18n="about.close">CLOSE</button>
       </div>
     </div>
     <script type="module" src="src/app.js"></script>

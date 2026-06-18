@@ -500,7 +500,7 @@ test("visual tactical symbols are intentionally compact", () => {
 
 test("HTML defaults to all-ship WEZ rings and 60x maximum speed", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
-  assert.match(html, /<option value="all" selected>ALL<\/option>/);
+  assert.match(html, /<option value="all" selected[^>]*>ALL<\/option>/);
   assert.match(html, /id="speed"[^>]*max="60"/);
   assert.match(html, /id="copy-fire-log"/);
   assert.doesNotMatch(html, /id="duplicate"|id="clear-blue"|id="clear-red"/);
@@ -517,8 +517,8 @@ test("right panel renderer is fleet inventory focused", () => {
   assert.match(ui, /sunk/);
   assert.match(ui, /inventory-divider/);
   assert.match(app, /right:\$\{rightInset\}px/);
-  assert.match(app, /flex-direction:row-reverse/);
-  assert.match(app, /cardsPerColumn/);
+  assert.match(app, /flex-direction:column/);
+  assert.match(app, /overflow-y:auto/);
   assert.match(app, /availableHeight/);
   assert.match(ui, /agg-meter/);
   assert.match(app, /copyLogToClipboard/);
