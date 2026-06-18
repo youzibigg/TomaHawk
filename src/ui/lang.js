@@ -131,6 +131,41 @@ const strings = {
 
   // Language toggle
   "lang.toggle": { en: "中", zh: "EN" },
+
+  // Map role tags
+  "role.otc":  { en: "OTC",  zh: "总指挥" },
+  "role.aawc": { en: "AAWC", zh: "防空指" },
+
+  // Event log side labels
+  "side.blue":   { en: "B",   zh: "蓝" },
+  "side.red":    { en: "R",   zh: "红" },
+  "side.sys":    { en: "S",   zh: "系" },
+
+  // Event log text fragments (for render-time translation)
+  "evt.launched":   { en: "launched",     zh: "发射" },
+  "evt.queued":     { en: "queued",       zh: "编队" },
+  "evt.at":         { en: "at",           zh: "对" },
+  "evt.intercepted":{ en: "intercepted",  zh: "拦截" },
+  "evt.incoming":   { en: "incoming",     zh: "来袭" },
+  "evt.failed":     { en: "failed to intercept", zh: "拦截失败" },
+  "evt.hitBy":      { en: "hit by",       zh: "被命中" },
+  "evt.damage":     { en: "Damage:",      zh: "伤害:" },
+  "evt.missionKilled":{ en: "mission-killed", zh: "任务损毁" },
+  "evt.hitsSustained":{ en: "hits sustained", zh: "累计命中" },
+  "evt.classLimit": { en: "class limit",  zh: "舰级上限" },
+  "evt.missed":     { en: "missed",       zh: "未命中" },
+  "evt.exhausted":  { en: "exhausted fuel and fell into the sea.", zh: "燃料耗尽，坠入海中。" },
+  "evt.selfDestruct":{ en: "received a midcourse abort and self-destructed after its target was destroyed.", zh: "中段自毁：目标已被摧毁。" },
+  "evt.lostTarget": { en: "lost its target and fell into the sea.", zh: "丢失目标，坠入海中。" },
+  "evt.ciwsDestroy":{ en: "CIWS destroyed incoming", zh: "近防系统击毁来袭" },
+  "evt.ciwsFailed": { en: "CIWS failed against",    zh: "近防系统未能拦截" },
+  "evt.subsysDmg":  { en: "subsystem damage:",       zh: "子系统损伤:" },
+  "evt.placed":     { en: "placed.",                 zh: "部署完成。" },
+  "evt.duplicated": { en: "duplicated from",         zh: "复制自" },
+  "evt.removed":    { en: "removed from scenario.",  zh: "已从想定中移除。" },
+  "evt.sideCleared":{ en: "side cleared from scenario.", zh: "该方已清除。" },
+  "evt.controls":   { en: "side controls the battlespace. Simulation ended.", zh: "方控制战场。模拟结束。" },
+  "evt.cannotRun":  { en: "Cannot run: both Blue and Red require at least one alive ship.", zh: "无法运行：蓝红双方各需至少一艘存活舰艇。" },
 };
 
 /** Return the translated string for `key` in the current language. */
@@ -161,4 +196,57 @@ export function toggleLang() {
 export function hullLabel(hull) {
   const key = `ship.${(hull || "DDG").toLowerCase()}`;
   return t(key);
+}
+
+/** Return the localized role tag for map labels. */
+export function roleLabel(role) {
+  if (role === "OTC") return t("role.otc");
+  if (role === "AAWC") return t("role.aawc");
+  return role;
+}
+
+/** Return the localized event side label (B/R/S or 蓝/红/系). */
+export function sideLabel(side) {
+  if (side === "BLUE") return t("side.blue");
+  if (side === "RED") return t("side.red");
+  return t("side.sys");
+}
+
+/** Translate an event log text string to the current language.
+ *  Uses pattern-based replacement so the sim core stays untouched. */
+export function translateEventText(text) {
+  if (currentLang === "en") return text;
+  let out = text;
+  // Ordered longest-match-first to avoid partial replacements
+  const pairs = [
+    ["failed to intercept", "evt.failed"],
+    ["received a midcourse abort and self-destructed after its target was destroyed.", "evt.selfDestruct"],
+    ["exhausted fuel and fell into the sea.", "evt.exhausted"],
+    ["lost its target and fell into the sea.", "evt.lostTarget"],
+    ["CIWS destroyed incoming", "evt.ciwsDestroy"],
+    ["CIWS failed against", "evt.ciwsFailed"],
+    ["mission-killed", "evt.missionKilled"],
+    ["hits sustained", "evt.hitsSustained"],
+    ["class limit", "evt.classLimit"],
+    ["subsystem damage:", "evt.subsysDmg"],
+    ["side controls the battlespace. Simulation ended.", "evt.controls"],
+    ["side cleared from scenario.", "evt.sideCleared"],
+    ["removed from scenario.", "evt.removed"],
+    ["Cannot run: both Blue and Red require at least one alive ship.", "evt.cannotRun"],
+    ["launched", "evt.launched"],
+    ["queued", "evt.queued"],
+    ["intercepted", "evt.intercepted"],
+    ["incoming", "evt.incoming"],
+    ["hit by", "evt.hitBy"],
+    ["Damage:", "evt.damage"],
+    ["missed", "evt.missed"],
+    ["duplicated from", "evt.duplicated"],
+    ["placed.", "evt.placed"],
+  ];
+  for (const [en, key] of pairs) {
+    if (out.includes(en)) {
+      out = out.replace(en, t(key));
+    }
+  }
+  return out;
 }

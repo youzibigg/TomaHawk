@@ -31,7 +31,7 @@ import {
   worldToScreen as projectWorldToScreen,
   screenToWorld as projectScreenToWorld
 } from "./ui/view.js";
-import { t, toggleLang, getLang, hullLabel } from "./ui/lang.js";
+import { t, toggleLang, getLang, hullLabel, roleLabel, sideLabel, translateEventText } from "./ui/lang.js";
 
 const canvas = document.querySelector("#map");
 const ctx = canvas.getContext("2d");
@@ -283,7 +283,7 @@ function drawScaledShip(ship) {
     ctx.globalAlpha = alpha;
     ctx.fillStyle = color;
     ctx.font = canvasFont(VISUAL_CONFIG.shipLabelPx);
-    const roleTag = ship.isOTC ? " ◈OTC" : ship.fleetRole === "AAWC" ? " ·AAWC" : "";
+    const roleTag = ship.isOTC ? ` ◈${roleLabel('OTC')}` : ship.fleetRole === "AAWC" ? ` ·${roleLabel('AAWC')}` : "";
     const displayHull = hullLabel(ship.hull);
     const seqNum = ship.id.replace(ship.hull + '-', '');
     ctx.fillText(`${displayHull}-${seqNum}${roleTag}`, p.x + len * 0.48 + 3, p.y - 5);
@@ -568,12 +568,13 @@ function renderPanels() {
     el.disabled = !placementEnabled;
   });
   eventLog.innerHTML = sim.events.map((e) => {
-    const sideChar = e.side === 'BLUE' ? 'B' : e.side === 'RED' ? 'R' : 'S';
+    const sLabel = sideLabel(e.side);
     const sideClass = e.side === 'BLUE' ? 'blue' : e.side === 'RED' ? 'red' : '';
-    return `<div class="${eventSeverity(e.text)}">
+    const sideWidth = getLang() === 'zh' ? '14px' : '12px';
+    return `<div class="${eventSeverity(e.text)}" style="grid-template-columns:34px ${sideWidth} minmax(0, 1fr)">
       <span class="event-time">${formatTime(e.t)}</span>
-      <b class="event-side ${sideClass}">${sideChar}</b>
-      <span class="event-text">${e.text}</span>
+      <b class="event-side ${sideClass}">${sLabel}</b>
+      <span class="event-text">${translateEventText(e.text)}</span>
     </div>`;
   }).join("");
 }
