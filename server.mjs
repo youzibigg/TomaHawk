@@ -39,5 +39,8 @@ createServer(async (req, res) => {
     res.end("Not found");
   }
 }).listen(port, host, () => {
-  console.log(`TomaHawk running at http://127.0.0.1:${port} (bound to ${host})`);
+  const localUrl = `http://127.0.0.1:${port}`;
+  const bindLabel = host === "0.0.0.0" ? `${host}:${port}` : localUrl;
+  const localHint = host === "0.0.0.0" ? ` (local access: ${localUrl})` : "";
+  console.log(`TomaHawk running on ${bindLabel}${localHint}`);
 });
