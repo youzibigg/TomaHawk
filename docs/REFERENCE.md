@@ -61,6 +61,9 @@ desired.
 - Tactical-feed and ship-detail headings and rows render at an effective 10px in Chrome and Edge; other DOM labels use a 14px source minimum so Chrome matches Edge profiles configured with a 14px minimum font size.
 - Tactical-feed display and clipboard exports use the active language, avoid duplicate side labels, and describe approximate opposing destroyers as `enemy DDG` / `敌方 DDG`.
 - The ruler supports multiple measurements; clicking `RULER` again clears all measurements and exits ruler mode.
+- The inventory uses the same effective 10px Lato typography as ship detail cards, with a narrower and shorter panel footprint.
+- The left setup controls are grouped under `SHIP SPAWNING`; map selection currently offers Open Sea and an East China Sea coastline layer.
+- Moving ships use short dashed heading arrows instead of waypoint lines and destination squares.
 
 ### 3. Technical architecture
 
@@ -155,6 +158,7 @@ transition, guidance style, and reserve behavior.
 - Public-source estimates are preferred over exact or sensitive values.
 - The current implementation is intentionally single-process and local.
 - There is no backend persistence layer beyond exported JSON files.
+- Terrain is currently a UI framework: coastline polygons and a reusable land query exist, but simulation movement does not yet enforce land collision or avoidance.
 - The docs describe the current implementation and release label only.
 
 ### 8. Contribution notes
@@ -287,6 +291,9 @@ TomaHawk 是仓库名，应用内部与运行时名称为 **战斧**。它是一
 - 战术动态与舰艇详情的标题和行文字在 Chrome 与 Edge 中均以等效 10px 显示；其他 DOM 标签使用 14px 源字号下限，使 Chrome 与最小字号设为 14px 的 Edge 配置一致。
 - 战术动态显示与剪贴板导出均使用当前语言，避免重复阵营名称，并将近似敌方驱逐舰简写为 `enemy DDG` / `敌方 DDG`。
 - 标尺支持保留多条测量线；再次点击 `标尺` 会清除全部测量线并退出标尺模式。
+- 编队库存与舰艇详情卡使用相同的 Lato 字体和等效 10px 字号，并缩窄、压低了面板尺寸。
+- 左侧五项准备控件统一归入 `船只生成` 分组；地图可在开放海域与东海海岸线图层之间选择。
+- 舰艇运动指示改为短虚线航向箭头，不再绘制通往目标点的虚线和目标方框。
 - `Delete` / `Backspace` 可删除 `setup` 模式下的选中单位。
 - `REV` 重置场景。
 
@@ -308,6 +315,7 @@ TomaHawk 是仓库名，应用内部与运行时名称为 **战斧**。它是一
 
 - 本项目是公开信息驱动的近似仿真，不是权威军事模型。
 - 参数应优先使用公开来源与明确的不确定性说明。
+- 地形目前是 UI 基础框架：已提供海岸线多边形与可复用的陆地点查询，但仿真机动尚未执行陆地碰撞或避障。
 - 当前实现刻意保持单进程、本地运行。
 - 除导出的 JSON 外，没有后端持久化层。
 - 文档仅描述当前实现，不包含前瞻性设计记录。

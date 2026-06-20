@@ -31,6 +31,7 @@ import {
   screenToWorld as projectScreenToWorld
 } from "./ui/view.js";
 import { t, toggleLang, getLang, hullLabel, roleLabel, sideLabel, translateEventText, formatLocalizedEventLines } from "./ui/lang.js";
+import { tacticalMap } from "./ui/maps.js";
 
 const canvas = document.querySelector("#map");
 const ctx = canvas.getContext("2d");
@@ -47,6 +48,7 @@ const toggleFeed = document.querySelector("#toggle-feed");
 const copyFireLog = document.querySelector("#copy-fire-log");
 const unitTab = document.querySelector("#unit-tab");
 const langToggle = document.querySelector("#lang-toggle");
+const mapSelect = document.querySelector("#map-select");
 const shipDetailOverlay = document.createElement("div");
 shipDetailOverlay.id = "ship-detail-overlay";
 document.body.appendChild(shipDetailOverlay);
@@ -289,18 +291,25 @@ function drawScaledShip(ship) {
     ctx.fillText(`${displayHull}-${seqNum}${roleTag}`, p.x + len * 0.48 + 3, p.y - 5);
     ctx.restore();
   }
-  if (ship.alive && ship.waypoint) {
-    const w = worldToScreen(ship.waypoint);
+  if (ship.alive && (ship.speed > 0.1 || ship.desiredSpeed > 0.1)) {
+    const hasVelocity = Math.hypot(ship.vx ?? 0, ship.vy ?? 0) > 0.1;
+    const direction = hasVelocity ? Math.atan2(ship.vy, ship.vx) : (Number.isFinite(ship.heading) ? ship.heading : 0);
+    const arrowLength = Math.max(18, Math.min(34, len * 2.8));
+    const tipX = p.x + Math.cos(direction) * arrowLength;
+    const tipY = p.y + Math.sin(direction) * arrowLength;
+    const wing = 5;
     ctx.strokeStyle = `${color}88`;
-    ctx.lineWidth = 0.7;
-    ctx.setLineDash([4, 5]);
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
     ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
-    ctx.lineTo(w.x, w.y);
+    ctx.moveTo(p.x + Math.cos(direction) * (len * 0.6), p.y + Math.sin(direction) * (len * 0.6));
+    ctx.lineTo(tipX, tipY);
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(tipX - Math.cos(direction - Math.PI / 4) * wing, tipY - Math.sin(direction - Math.PI / 4) * wing);
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(tipX - Math.cos(direction + Math.PI / 4) * wing, tipY - Math.sin(direction + Math.PI / 4) * wing);
     ctx.stroke();
     ctx.setLineDash([]);
-    const mark = worldSize(90, 2, 5.5, 22);
-    ctx.strokeRect(w.x - mark, w.y - mark, mark * 2, mark * 2);
   }
 }
 
@@ -543,6 +552,7 @@ function renderShipDetails() {
 
 
 function applyI18n() {
+  document.documentElement.lang = getLang() === 'zh' ? 'zh-CN' : 'en';
   document.querySelectorAll('[data-i18n]').forEach((el) => {
     el.textContent = t(el.getAttribute('data-i18n'));
   });
@@ -558,6 +568,27 @@ function applyI18n() {
     const keys = ['inv.ship','inv.hp','inv.vls','inv.sm2','inv.sm6','inv.essm','inv.mstk','inv.tlam'];
     spans.forEach((sp, i) => { if (keys[i]) sp.textContent = t(keys[i]); });
   }
+}
+
+function drawTerrain() {
+  const map = tacticalMap(mapSelect?.value);
+  ctx.save();
+  ctx.fillStyle = "#111b1f";
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 1.8;
+  ctx.setLineDash([]);
+  for (const polygon of map.land) {
+    ctx.beginPath();
+    polygon.forEach((point, index) => {
+      const p = worldToScreen(point);
+      if (index === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    });
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function renderPanels() {
@@ -597,6 +628,7 @@ function setFeedCollapsed(nextCollapsed) {
 function render() {
   labelBoxes = [];
   drawGrid();
+  drawTerrain();
   for (const ship of sim.ships) drawWeaponRangeRings(ship);
   drawRadarRings();
   const focus = sim.ships.find((candidate) => candidate.id === sim.selectedId && selectedIds.has(candidate.id));

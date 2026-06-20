@@ -524,6 +524,7 @@ test("right panel renderer is fleet inventory focused", () => {
   assert.match(app, /copyLogToClipboard/);
   assert.match(app, /setFeedCollapsed/);
   assert.match(app, /toggle-feed/);
+  assert.match(app, /document\.documentElement\.lang = getLang\(\) === 'zh' \? 'zh-CN' : 'en'/);
   assert.match(app, /entry\.category === "anti_air"/);
   assert.doesNotMatch(ui, /<span>Class<\/span>|<span>Scenario<\/span>|<span>Heading<\/span>/);
   assert.doesNotMatch(ui, /LAST LAUNCH|LAST EFFECT/);
@@ -531,10 +532,17 @@ test("right panel renderer is fleet inventory focused", () => {
 
 test("fleet inventory styling stays compact with cross-browser font parity", () => {
   const css = fs.readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
-  assert.match(css, /grid-template-columns:\s*minmax\(44px, 1\.3fr\) minmax\(28px, 0\.82fr\) minmax\(50px, 1\.12fr\) repeat\(5, minmax\(26px, 0\.76fr\)\);/);
-  assert.match(css, /font:\s*500 12px var\(--font-mono\);/);
-  assert.match(css, /font:\s*430 12px var\(--font-mono\);/);
+  assert.match(css, /grid-template-columns:\s*minmax\(42px, 1\.25fr\) minmax\(25px, 0\.72fr\) minmax\(45px, 1fr\) repeat\(5, minmax\(23px, 0\.66fr\)\);/);
+  assert.match(css, /font:\s*500 14px var\(--font-ui\);/);
+  assert.match(css, /font:\s*430 14px var\(--font-ui\);/);
   assert.match(css, /justify-items:\s*center;/);
+});
+
+test("ship movement rendering uses a dashed velocity arrow without a waypoint square", () => {
+  const app = fs.readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+  assert.match(app, /Math\.atan2\(ship\.vy, ship\.vx\)/);
+  assert.match(app, /ctx\.setLineDash\(\[3, 3\]\)/);
+  assert.doesNotMatch(app, /ctx\.strokeRect\(w\.x/);
 });
 
 test("loadout display counts remain non-negative integers after repeated launches", () => {

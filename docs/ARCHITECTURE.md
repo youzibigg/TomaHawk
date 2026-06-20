@@ -33,6 +33,7 @@ Scenarios move through three modes:
 The canvas renderer draws the tactical map in this order:
 
 - ocean grid and scenario bounds,
+- selected presentation terrain (currently Open Sea or East China Sea coastlines),
 - all-ship weapon engagement-zone rings from actual nonzero loadout,
 - radar rings when enabled,
 - selected-unit perceived tracks and uncertainty,
@@ -52,6 +53,8 @@ The lower-left footer shows a one-line side summary for ship counts, hitpoints, 
 - The interface deliberately retains small, dense type. Hierarchy comes from surface contrast, weight, grouping, dividers, and selective amber/side-color emphasis rather than globally increasing font sizes.
 - The top command deck separates brand, scenario tools, map layers, and inventory. The bottom deck separates simulation transport, tactical readout, and save/export actions.
 - The tactical feed is a distinct lower-left console with its copy action and retract toggle attached to the feed header.
+
+Terrain definitions live in `src/ui/maps.js` as presentation polygons. The module also exposes `isLandPoint()` as the future integration boundary for placement, path planning, and collision checks. The deterministic simulation movement code does not consume terrain yet, so land avoidance is deliberately not claimed as current behavior.
 
 ## DCS Map Reference
 

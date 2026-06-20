@@ -10,6 +10,7 @@ const strings = {
   // Panel headings
   "panel.forceInventory": { en: "FORCE INVENTORY", zh: "态势列表" },
   "panel.liveOrder":      { en: "LIVE ORDER",      zh: "实时指令" },
+  "panel.shipSpawning":   { en: "SHIP SPAWNING",   zh: "船只生成" },
 
   // Console
   "console.tacticalFeed": { en: "TACTICAL FEED",    zh: "战术日志" },
@@ -31,6 +32,9 @@ const strings = {
   "opt.all":     { en: "ALL",     zh: "全部" },
   "opt.sel":     { en: "SEL",     zh: "选定" },
   "opt.off":     { en: "OFF",     zh: "关闭" },
+  "map.select":       { en: "Tactical map", zh: "战术地图" },
+  "map.eastChinaSea": { en: "EAST CHINA SEA", zh: "东海" },
+  "map.openSea":      { en: "OPEN SEA", zh: "开放海域" },
 
   // Bottom bar buttons
   "btn.step":    { en: "STEP",    zh: "步进" },

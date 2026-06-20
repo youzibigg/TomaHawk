@@ -13,7 +13,9 @@
         <div class="brand-wordmark">TOMAHAWK<span class="brand-version">v0.1</span></div>
         <button id="lang-toggle" class="tool" title="中/EN">中</button>
       </header>
-      <section id="left-rail" class="panel">
+      <section id="left-rail" class="panel" aria-labelledby="spawn-heading">
+        <span id="spawn-heading" data-i18n="panel.shipSpawning">SHIP SPAWNING</span>
+        <div class="spawn-tools">
         <button data-tool="blue" class="tool blue" title="Add blue ship" data-i18n="tool.blue" data-i18n-title="place.addBlue">BLUE</button>
         <button data-tool="red" class="tool red" title="Add red ship" data-i18n="tool.red" data-i18n-title="place.addRed">RED</button>
         <select id="ship-class" class="tool" title="Ship class for placement" data-i18n-title="place.class">
@@ -24,6 +26,7 @@
         </select>
         <button data-tool="ruler" class="tool" title="Measure range/bearing (R)" data-i18n="tool.ruler" data-i18n-title="place.measure">RULER</button>
         <button id="reset" class="tool" title="Revert scenario" data-i18n="tool.rev" data-i18n-title="place.revert">REV</button>
+        </div>
       </section>
       <section id="map-options" class="panel">
         <button id="filter-grid" class="toggle-btn active" data-i18n="opt.grid">GRID</button>
@@ -36,6 +39,10 @@
           <option value="off" data-i18n="opt.off">OFF</option>
         </select>
         <button id="filter-missiles" class="toggle-btn active" data-i18n="opt.weapons">WEAPONS</button>
+        <select id="map-select" title="Tactical map" data-i18n-title="map.select">
+          <option value="eastChinaSea" data-i18n="map.eastChinaSea">EAST CHINA SEA</option>
+          <option value="openSea" data-i18n="map.openSea">OPEN SEA</option>
+        </select>
       </section>
       <section id="right-panel" class="panel">
         <div class="panel-heading"><span data-i18n="panel.forceInventory">FORCE INVENTORY</span><span class="rp-collapse" title="Collapse panel (Tab)" data-i18n-title="place.collapse">◁</span></div>

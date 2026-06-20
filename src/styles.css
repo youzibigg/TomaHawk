@@ -112,11 +112,27 @@ input {
 #left-rail {
   top: 44px;
   left: 8px;
-  width: 54px;
+  width: 72px;
+  display: grid;
+  gap: 1px;
+  padding: 3px 4px 4px;
+  z-index: 3;
+}
+
+#spawn-heading {
+  color: var(--muted);
+  font: 600 14px/1 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-align: center;
+  white-space: nowrap;
+  zoom: 0.7142857143;
+}
+
+.spawn-tools {
   display: grid;
   gap: 2px;
   padding: 3px;
-  z-index: 3;
+  border: 1px solid rgba(142, 193, 205, 0.42);
 }
 
 .tool,
@@ -230,7 +246,7 @@ input:focus-visible {
 #right-panel {
   top: 8px;
   right: 128px;
-  width: min(460px, calc(100vw - 180px));
+  width: min(378px, calc(100vw - 180px));
   max-height: calc(100vh - 82px);
   overflow: auto;
   border-color: var(--panel-strong);
@@ -377,8 +393,8 @@ small,
 .inventory-head,
 .inventory-row {
   display: grid;
-  grid-template-columns: minmax(44px, 1.3fr) minmax(28px, 0.82fr) minmax(50px, 1.12fr) repeat(5, minmax(26px, 0.76fr));
-  column-gap: 4px;
+  grid-template-columns: minmax(42px, 1.25fr) minmax(25px, 0.72fr) minmax(45px, 1fr) repeat(5, minmax(23px, 0.66fr));
+  column-gap: 2px;
   align-items: center;
   width: 100%;
   min-width: 0;
@@ -391,23 +407,23 @@ small,
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 1px 4px;
+  padding: 0 3px;
   background: rgba(5, 14, 19, 0.96);
   color: var(--muted);
-  font: 500 12px var(--font-mono);
+  font: 500 14px var(--font-ui);
   line-height: 1;
 }
 
 .inventory-row {
-  min-height: 8px;
+  min-height: 10px;
   margin: 0;
-  padding: 1px 4px;
+  padding: 0 3px;
   border: 0;
   border-bottom: 1px solid rgba(142, 193, 205, 0.07);
   background: transparent;
   color: var(--text);
   text-align: center;
-  font: 430 12px var(--font-mono);
+  font: 430 14px var(--font-ui);
   line-height: 1;
 }
 
@@ -419,6 +435,7 @@ small,
   white-space: nowrap;
   width: 100%;
   text-align: center;
+  zoom: 0.7142857143;
 }
 
 .inventory-row b {
@@ -432,7 +449,7 @@ small,
 }
 
 .inventory-row span:first-child {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 650;
   letter-spacing: 0.08em;
 }

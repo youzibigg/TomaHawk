@@ -17,11 +17,8 @@ test("compact UI text renders at 10px despite a 14px browser minimum", () => {
 test("all DOM font declarations meet Edge's 14px minimum before compact-text zoom", () => {
   const declarations = [...css.matchAll(/([^\n{}]+)\{[^}]*?font(?:-size)?\s*:[^;{}]*?(\d+(?:\.\d+)?)px/gms)]
     .map((match) => ({ selector: match[1].trim(), size: Number(match[2]) }));
-  const inventorySizes = declarations.filter((entry) => entry.selector.includes(".inventory-"));
-  const otherSizes = declarations.filter((entry) => !entry.selector.includes(".inventory-"));
-  assert.ok(inventorySizes.length >= 2, "expected inventory headings/rows to use 12px source text");
-  assert.ok(inventorySizes.every((entry) => entry.size === 12), `expected 12px inventory text, got ${inventorySizes.map((entry) => `${entry.selector}:${entry.size}`).join(", ")}`);
-  assert.ok(otherSizes.every((entry) => entry.size >= 14), `found sub-14px declarations outside inventory: ${otherSizes.filter((entry) => entry.size < 14).map((entry) => `${entry.selector}:${entry.size}`).join(", ")}`);
+  assert.ok(declarations.every((entry) => entry.size >= 14), `found sub-14px declarations: ${declarations.filter((entry) => entry.size < 14).map((entry) => `${entry.selector}:${entry.size}`).join(", ")}`);
+  assert.match(css, /\.inventory-head span,[\s\S]*?zoom:\s*0\.7142857143;/);
 });
 
 test("ship detail meter is centered by symmetric outer grid columns", () => {
