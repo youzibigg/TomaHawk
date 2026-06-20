@@ -9,7 +9,9 @@ const SOURCES = {
   land: `https://raw.githubusercontent.com/nvkelso/natural-earth-vector/${NATURAL_EARTH_REVISION}/geojson/ne_10m_land.geojson`,
   coast: `https://raw.githubusercontent.com/nvkelso/natural-earth-vector/${NATURAL_EARTH_REVISION}/geojson/ne_10m_coastline.geojson`
 };
-const CROP = { minLon: 116, maxLon: 134, minLat: 23, maxLat: 34 };
+// Four times the original 118.2-131.8 E by 25.2-31.2 N tactical view,
+// expanded about the same 125 E, 28.2 N projection center.
+const CROP = { minLon: 97.8, maxLon: 152.2, minLat: 16.2, maxLat: 40.2 };
 const CENTER = { lon: 125, lat: 28.2 };
 const EARTH_RADIUS_M = 6371008.8;
 

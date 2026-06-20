@@ -5,7 +5,7 @@
 // HTML strings. This keeps the view logic unit-testable (see tests/ui.test.mjs)
 // and is the first step of separating rendering from `src/app.js`.
 
-import { SIDE, usedCells, vlsCapacity, battleSummaryCounts } from "../sim.js";
+import { SIDE, defaultLoadout, usedCells, vlsCapacity, battleSummaryCounts } from "../sim.js";
 import { t, hullLabel } from "./lang.js";
 
 // --- colors ----------------------------------------------------------------
@@ -48,6 +48,29 @@ export function vlsLoadState(ship) {
   const cap = Math.max(1, Math.round(vlsCapacity(ship)));
   const fill = Math.max(0, Math.min(1, used / cap));
   return { used, cap, fill };
+}
+
+export function inventoryHpColor(ship) {
+  const hp = shipHpState(ship);
+  if (hp.currentHp <= 0) return "#4e6972";
+  if (hp.currentHp >= hp.maxHp) return "#5fd58c";
+  return "#f7b955";
+}
+
+export function inventoryVlsColor(ship) {
+  const vls = vlsLoadState(ship);
+  if (vls.used <= 0) return "#4e6972";
+  if (vls.fill > 2 / 3) return "#5fd58c";
+  if (vls.fill > 1 / 3) return "#f7b955";
+  return "#f28d4e";
+}
+
+export function inventoryMissileColor(ship, missileId) {
+  const baseline = Math.max(0, Math.round(defaultLoadout(ship?.hull ?? "DDG")?.[missileId] ?? 0));
+  const count = displayCount(ship, missileId);
+  if (count <= 0) return "#4e6972";
+  if (baseline <= 0) return "#ffffff";
+  return count > baseline / 3 ? "#ffffff" : "#f7b955";
 }
 
 export function displayCount(ship, missileId) {
@@ -111,19 +134,27 @@ export function inventoryDividerHtml() {
   return `<div class="inventory-divider" aria-hidden="true"></div>`;
 }
 
+export function shipDisplayName(ship, separator = "-") {
+  const hull = hullLabel(ship?.hull);
+  const rawId = String(ship?.id ?? "");
+  const suffix = rawId.includes("-")
+    ? rawId.slice(rawId.indexOf("-") + 1)
+    : rawId.replace(/^[A-Z]+/, "");
+  return suffix ? `${hull}${separator}${suffix}` : hull;
+}
+
 export function inventoryRowHtml(ship, selected = false) {
   const hp = shipHpState(ship);
-  const displayId = ship.id.replace(ship.hull, hullLabel(ship.hull));
   return `
       <button class="inventory-row ${ship.side.toLowerCase()} ${ship.alive ? "" : "sunk"} ${selected ? "selected" : ""}" data-select-ship="${ship.id}">
-        <span>${displayId}</span>
-        <b style="color:${hp.currentHp < hp.maxHp ? '#f7b955' : ''}">${hp.currentHp}/${hp.maxHp}</b>
-        <b>${Math.round(usedCells(ship.loadout))}/${ship.vlsCells ?? 96}</b>
-        <b>${displayCount(ship, "SM-2MR")}</b>
-        <b>${displayCount(ship, "SM-6")}</b>
-        <b>${displayCount(ship, "ESSM")}</b>
-        <b>${displayCount(ship, "MaritimeStrike")}</b>
-        <b>${displayCount(ship, "TomahawkBlockV")}</b>
+        <span>${shipDisplayName(ship, "-")}</span>
+        <b style="color:${inventoryHpColor(ship)}">${hp.currentHp}/${hp.maxHp}</b>
+        <b style="color:${inventoryVlsColor(ship)}">${Math.round(usedCells(ship.loadout))}/${ship.vlsCells ?? 96}</b>
+        <b style="color:${inventoryMissileColor(ship, "SM-2MR")}">${displayCount(ship, "SM-2MR")}</b>
+        <b style="color:${inventoryMissileColor(ship, "SM-6")}">${displayCount(ship, "SM-6")}</b>
+        <b style="color:${inventoryMissileColor(ship, "ESSM")}">${displayCount(ship, "ESSM")}</b>
+        <b style="color:${inventoryMissileColor(ship, "MaritimeStrike")}">${displayCount(ship, "MaritimeStrike")}</b>
+        <b style="color:${inventoryMissileColor(ship, "TomahawkBlockV")}">${displayCount(ship, "TomahawkBlockV")}</b>
       </button>
     `;
 }

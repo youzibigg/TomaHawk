@@ -5,8 +5,12 @@ export const KM = 1000;
 export const GRID_MINOR_M = 20 * KM;
 export const GRID_MAJOR_M = 100 * KM;
 export const WEAPON_LABEL_MIN_SCALE = 0.0012;
-export const MAP_WIDTH_M = 720 * NM;
-export const MAP_HEIGHT_M = 360 * NM;
+export const CORE_MAP_WIDTH_M = 720 * NM;
+export const CORE_MAP_HEIGHT_M = 360 * NM;
+export const MAP_WIDTH_M = CORE_MAP_WIDTH_M * 4;
+export const MAP_HEIGHT_M = CORE_MAP_HEIGHT_M * 4;
+export const MAP_HALF_WIDTH_M = MAP_WIDTH_M / 2;
+export const MAP_HALF_HEIGHT_M = MAP_HEIGHT_M / 2;
 export const EAST_CHINA_SEA_CENTER = Object.freeze({ lon: 125, lat: 28.2 });
 const EARTH_RADIUS_M = 6371008.8;
 
@@ -64,7 +68,7 @@ export const TACTICAL_MAPS = {
       center: EAST_CHINA_SEA_CENTER,
       sourceCrs: "EPSG:4326"
     },
-    geographicExtent: { west: 118.2, east: 131.8, south: 25.2, north: 31.2 },
+    geographicExtent: { west: 97.8, east: 152.2, south: 16.2, north: 40.2 },
     landRings: EAST_CHINA_SEA_DATA.landRings,
     coastlines: EAST_CHINA_SEA_DATA.coastlines
   }

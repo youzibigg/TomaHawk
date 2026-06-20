@@ -3,7 +3,7 @@
 // gating predicates.
 
 import { NM, KNOT, SHIP_SPEED_MULTIPLIER, SIDE, SCENARIO_MODE, FLEET_ROLE } from "./constants.js";
-import { Rng } from "./math.js";
+import { clamp, Rng } from "./math.js";
 import {
   SHIP_CLASSES,
   makeShip,
@@ -15,14 +15,30 @@ import {
 } from "./ships.js";
 import { addEvent } from "./events.js";
 
+const SIM_WIDTH_M = 2880 * NM;
+const SIM_HEIGHT_M = 1440 * NM;
+
+function scenarioDimension(value, fallback) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
+}
+
+export function clampShipToBounds(sim, ship) {
+  const x = Number(ship.x);
+  const y = Number(ship.y);
+  ship.x = clamp(Number.isFinite(x) ? x : 0, -sim.widthM / 2, sim.widthM / 2);
+  ship.y = clamp(Number.isFinite(y) ? y : 0, -sim.heightM / 2, sim.heightM / 2);
+  return ship;
+}
+
 export function createScenario(seed = 7) {
   resetShipIds(1);
   const sim = {
     time: 0,
     seed,
     rng: new Rng(seed),
-    widthM: 720 * NM,
-    heightM: 360 * NM,
+    widthM: SIM_WIDTH_M,
+    heightM: SIM_HEIGHT_M,
     ships: [],
     missiles: [],
     events: [],
@@ -62,20 +78,23 @@ export function restoreScenario(data) {
   if (!data || data.version !== 1 || !Array.isArray(data.ships)) {
     throw new Error("Unsupported scenario file");
   }
+  const seed = Number.isFinite(Number(data.seed)) ? Number(data.seed) : 7;
+  const widthM = scenarioDimension(data.widthM, SIM_WIDTH_M);
+  const heightM = scenarioDimension(data.heightM, SIM_HEIGHT_M);
   resetShipIds(Math.max(1, ...data.ships.map((s) => {
     const num = Number(String(s.id).replace(/^[A-Z]+-/, "")) || 0;
     return num;
   })) + 1);
   return {
     time: Number(data.time) || 0,
-    seed: Number(data.seed) || 7,
-    rng: new Rng(Number(data.seed) || 7),
-    widthM: Number(data.widthM) || 720 * NM,
-    heightM: Number(data.heightM) || 360 * NM,
+    seed,
+    rng: new Rng(seed),
+    widthM,
+    heightM,
     ships: data.ships.map((ship) => {
       const hull = ship.hull || "DDG";
       const cls = SHIP_CLASSES[hull] || SHIP_CLASSES.DDG;
-      return {
+      return clampShipToBounds({ widthM, heightM }, {
         ...ship,
         hull,
         className: ship.className || cls.className,
@@ -145,7 +164,7 @@ export function restoreScenario(data) {
         sectorCenter: Number.isFinite(ship.sectorCenter) ? ship.sectorCenter : (ship.side === SIDE.BLUE ? 0 : Math.PI),
         sectorHalfWidth: Number.isFinite(ship.sectorHalfWidth) ? ship.sectorHalfWidth : Math.PI,
         station: ship.station || null
-      };
+      });
     }),
     missiles: Array.isArray(data.missiles) ? data.missiles : [],
     events: Array.isArray(data.events) ? data.events : [],
@@ -177,7 +196,7 @@ export function exportAfterAction(sim) {
 }
 
 export function placeShip(sim, side, x, y, hull = "DDG") {
-  const ship = makeShip(side, x, y, hull);
+  const ship = clampShipToBounds(sim, makeShip(side, x, y, hull));
   sim.ships.push(ship);
   sim.selectedId = ship.id;
   addEvent(sim, `${side} ${ship.hull} placed.`, side);
@@ -196,6 +215,7 @@ export function duplicateShip(sim, shipId) {
   copy.doctrine = { ...original.doctrine };
   copy.defenseDoctrine = { ...original.defenseDoctrine };
   copy.offenseDoctrine = { ...original.offenseDoctrine };
+  clampShipToBounds(sim, copy);
   sim.ships.push(copy);
   sim.selectedId = copy.id;
   addEvent(sim, `${copy.side} ${copy.hull} duplicated from ${original.id}.`, copy.side);

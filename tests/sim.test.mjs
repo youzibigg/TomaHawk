@@ -14,6 +14,7 @@ import {
   FLEET_ROLE,
   VISUAL_CONFIG,
   canRunScenario,
+  clampShipToBounds,
   chooseDefensiveWeapon,
   clearSide,
   createScenario,
@@ -84,6 +85,14 @@ test("default scenario creates one blue and one red destroyer", () => {
   assert.equal(sim.mode, SCENARIO_MODE.SETUP);
   assert.equal(Math.abs(sim.ships[0].x - sim.ships[1].x), 40 * NM);
   assert.equal(Math.abs(sim.ships[0].x - sim.ships[1].x) / NM, 40);
+  assert.equal(sim.widthM, 2880 * NM);
+  assert.equal(sim.heightM, 1440 * NM);
+});
+
+test("default ship headings point blue left and red right before battle starts", () => {
+  const sim = createScenario(1);
+  assert.equal(sim.ships[0].heading, Math.PI);
+  assert.equal(sim.ships[1].heading, 0);
 });
 
 test("loadout validation enforces 96-cell VLS capacity", () => {
@@ -536,6 +545,34 @@ test("fleet inventory styling stays compact with cross-browser font parity", () 
   assert.match(css, /font:\s*500 14px var\(--font-ui\);/);
   assert.match(css, /font:\s*430 14px var\(--font-ui\);/);
   assert.match(css, /justify-items:\s*center;/);
+});
+
+test("setup coordinates are clamped before the simulation starts", () => {
+  const sim = createScenario(46);
+  const placed = placeShip(sim, SIDE.BLUE, Infinity, -Infinity);
+  assert.equal(placed.x, 0);
+  assert.equal(placed.y, 0);
+
+  placed.x = sim.widthM;
+  placed.y = -sim.heightM;
+  clampShipToBounds(sim, placed);
+  assert.equal(placed.x, sim.widthM / 2);
+  assert.equal(placed.y, -sim.heightM / 2);
+});
+
+test("scenario restore normalizes invalid dimensions and ship coordinates", () => {
+  const data = serializeScenario(createScenario(0));
+  data.widthM = -1;
+  data.heightM = "invalid";
+  data.ships[0].x = "not-a-coordinate";
+  data.ships[0].y = Infinity;
+
+  const restored = restoreScenario(data);
+  assert.equal(restored.seed, 0);
+  assert.equal(restored.widthM, 2880 * NM);
+  assert.equal(restored.heightM, 1440 * NM);
+  assert.equal(restored.ships[0].x, 0);
+  assert.equal(restored.ships[0].y, 0);
 });
 
 test("ship movement rendering uses a dashed velocity arrow without a waypoint square", () => {

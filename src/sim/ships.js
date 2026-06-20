@@ -132,7 +132,7 @@ export function makeShip(side, x, y, hull = "DDG") {
   const cruise = cls.cruiseSpeedKt * KNOT * SHIP_SPEED_MULTIPLIER;
   return {
     id, name: `${side} ${cls.prefix} ${seq}`, side, hull, className: cls.className, x, y,
-    heading: side === SIDE.BLUE ? 0 : Math.PI, speed: 0,
+    heading: side === SIDE.BLUE ? Math.PI : 0, speed: 0,
     cruiseSpeed: cruise, desiredSpeed: cruise,
     maxSpeed: cls.maxSpeedKt * KNOT * SHIP_SPEED_MULTIPLIER,
     accel: cls.accelMps2 * SHIP_SPEED_MULTIPLIER, decel: cls.decelMps2 * SHIP_SPEED_MULTIPLIER,

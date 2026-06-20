@@ -154,7 +154,7 @@ Important fields:
 - `events`
 - `nextFirePlanAt`
 
-New scenarios begin in `setup`. The default Blue and Red destroyers start 40 NM apart, 20 NM on each side of the origin, so engagements begin quickly while ship movement remains at real 1x speed. Setup mode allows adding ships, dragging starting positions, right-click selection, box selection, and keyboard deletion. The simulation can run only when at least one alive Blue and one alive Red ship exist.
+New scenarios begin in `setup`. The default Blue and Red destroyers start 40 NM apart, 20 NM on each side of the origin, so engagements begin quickly while ship movement remains at real 1x speed. Setup mode allows adding ships, dragging starting positions, right-click selection, box selection, and keyboard deletion. Placement, dragging, duplication, and restored saves clamp ship coordinates to the scenario bounds immediately, so starting the simulation cannot cause a delayed boundary snap. The simulation can run only when at least one alive Blue and one alive Red ship exist.
 
 ## Visual Config
 

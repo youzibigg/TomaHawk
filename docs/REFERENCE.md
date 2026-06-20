@@ -53,18 +53,23 @@ desired.
 #### User interface and workflow
 - Full-screen tactical map canvas.
 - Grid, tracks, radar, WEZ, and missile visibility filters.
+- Tactical-map unit symbols are icon-only; ship, track, and missile identifiers are kept out of the canvas layer.
+- Ship names stay visible on the map and in the fleet inventory, using localized hull names plus the ship number.
+- Weapon range labels show the weapon name only; numeric distance text is omitted.
 - Ship-class placement controls.
 - Fleet inventory panel and compact event log.
 - Save, load, AAR export, and tactical-feed copy actions.
 - Right-click selection and multi-ship detail overlays.
-- Ship detail rows show a localized subsystem name, a centered status bar, and a percentage only.
+- Ship detail headings use a single localized hull prefix plus the ship number, and detail rows show a localized subsystem name, a centered status bar, and a percentage only.
 - Tactical-feed and ship-detail headings and rows render at an effective 10px in Chrome and Edge; other DOM labels use a 14px source minimum so Chrome matches Edge profiles configured with a 14px minimum font size.
 - Tactical-feed display and clipboard exports use the active language, avoid duplicate side labels, and describe approximate opposing destroyers as `enemy DDG` / `敌方 DDG`.
 - The ruler supports multiple measurements; clicking `RULER` again clears all measurements and exits ruler mode.
 - The inventory uses the same effective 10px system UI typography as ship detail cards, with a narrower and shorter panel footprint.
+- Inventory and detail-panel DOM is retained between animation frames when its content has not changed, so controls remain clickable during continuous rendering.
 - The left setup controls are grouped under `SHIP SPAWNING`; map selection currently offers Open Sea and an East China Sea coastline layer.
+- Ship direction arrows stay hidden during setup and appear when the battle starts; initial blue headings face left and red headings face right.
 - Moving ships use short dashed heading arrows instead of waypoint lines and destination squares.
-- The East China Sea layer uses locally bundled Natural Earth 1:10m land/coastline data in an azimuthal-equidistant projection and fills the viewport without stretching or an artificial outer border.
+- The East China Sea layer uses locally bundled Natural Earth 1:10m land/coastline data in an azimuthal-equidistant projection and fills the viewport without stretching. The tactical map and simulation bounds now share the same much larger rigid world extent, and the camera clamps to that border instead of zooming past it.
 - Map coordinates, the 20 km grid, dynamic scale bar, rulers, and visible weapon ranges use kilometers. Internal simulation distances remain meters.
 - Weapon and missile text is hidden at wide zoom while circles and symbols remain; ship names stay fully opaque.
 
@@ -216,10 +221,14 @@ TomaHawk 是仓库名，应用内部与运行时名称为 **战斧**。它是一
 #### 界面与操作流
 - 全屏战术地图画布。
 - 网格、航迹、雷达、武器射程圈、导弹图层过滤。
+- 战术地图仅显示图标，不在画布层显示舰艇、航迹或导弹文字标识。
+- 舰名仍显示在地图和编队库存中，格式为本地化舰级名称加舰号。
+- 武器射程标签只显示武器名称，不再附带距离数值。
 - 支持按舰型投放单位。
 - 编队库存面板与事件日志面板。
 - 场景保存、读取、AAR 导出、战术日志复制。
 - 右键选中与多舰详情卡片。
+- 舰艇详情标题只显示一次本地化舰级前缀加舰号，详情行显示本地化子系统名称、居中的状态条和百分比。
 
 ### 3. 技术架构
 
@@ -295,9 +304,11 @@ TomaHawk 是仓库名，应用内部与运行时名称为 **战斧**。它是一
 - 战术动态显示与剪贴板导出均使用当前语言，避免重复阵营名称，并将近似敌方驱逐舰简写为 `enemy DDG` / `敌方 DDG`。
 - 标尺支持保留多条测量线；再次点击 `标尺` 会清除全部测量线并退出标尺模式。
 - 编队库存与舰艇详情卡使用相同的系统 UI 字体和等效 10px 字号，并缩窄、压低了面板尺寸。
+- 编队库存与详情面板内容未变化时会在动画帧之间保留 DOM，避免持续渲染期间控件点击失效。
 - 左侧五项准备控件统一归入 `船只生成` 分组；地图可在开放海域与东海海岸线图层之间选择。
+- 舰艇方向箭头在部署阶段隐藏，开战时才出现；蓝方初始朝左，红方初始朝右。
 - 舰艇运动指示改为短虚线航向箭头，不再绘制通往目标点的虚线和目标方框。
-- 东海图层使用本地打包的 Natural Earth 1:10m 陆地与海岸线数据，并采用等距方位投影；地图铺满视口，不拉伸，也不显示人为外框。
+- 东海图层使用本地打包的 Natural Earth 1:10m 陆地与海岸线数据，并采用等距方位投影；地图铺满视口，不拉伸。战术地图与仿真边界现在共享同一个更大的固定世界范围，相机不会越过该边界。
 - 地图坐标、20 公里网格、动态比例尺、标尺和可见武器射程统一使用公里；仿真内部仍以米为单位。
 - 广域缩放时隐藏武器与导弹文字但保留射程圈和符号；舰名始终保持完全不透明。
 - `Delete` / `Backspace` 可删除 `setup` 模式下的选中单位。

@@ -50,7 +50,8 @@ test("canvas map fills the viewport without an outer border and uses kilometers"
   assert.doesNotMatch(app, /clipMapScene\(\)/);
   assert.doesNotMatch(app, /drawMapBorder\(\)/);
   assert.match(app, /niceScaleDistanceM\(camera\.scale, 72\)/);
-  assert.match(app, /formatDistanceKm\(entry\.rangeM\)/);
+  assert.match(app, /ctx\.fillText\(entry\.shortLabel, labelX, labelY\)/);
+  assert.doesNotMatch(app, /entry\.shortLabel\}\s*\$\{formatDistanceKm/);
   assert.match(app, /dKm\.toFixed\(1\).*km/);
   assert.doesNotMatch(app, /dNm\.toFixed/);
 });

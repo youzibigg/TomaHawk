@@ -25,7 +25,7 @@ const strings = {
 
   // Map option toggles
   "opt.grid":    { en: "GRID",    zh: "网格" },
-  "opt.tracks":  { en: "TRACKS",  zh: "航迹" },
+  "opt.tracks":  { en: "TRACKS",  zh: "锁定" },
   "opt.radar":   { en: "RADAR",   zh: "雷达" },
   "opt.wez":     { en: "WEZ",     zh: "杀伤区" },
   "opt.weapons": { en: "WEAPONS", zh: "武器" },

@@ -7,6 +7,7 @@ import {
   VISUAL_CONFIG,
   canRunScenario,
   canAddAssets,
+  clampShipToBounds,
   createScenario,
   deleteShip,
   distance,
@@ -24,17 +25,22 @@ import {
   sideColor,
   sideSoftColor,
   shipHpState,
+  shipDisplayName,
   vlsLoadState,
   renderBattleStatus,
   inventoryHtml,
   worldToScreen as projectWorldToScreen,
   screenToWorld as projectScreenToWorld
 } from "./ui/view.js";
-import { t, toggleLang, getLang, hullLabel, roleLabel, sideLabel, translateEventText, formatLocalizedEventLines } from "./ui/lang.js";
+import { t, toggleLang, getLang, sideLabel, translateEventText, formatLocalizedEventLines } from "./ui/lang.js";
 import {
   GRID_MAJOR_M,
   GRID_MINOR_M,
   KM,
+  MAP_HALF_HEIGHT_M,
+  MAP_HALF_WIDTH_M,
+  MAP_HEIGHT_M,
+  MAP_WIDTH_M,
   formatDistanceKm,
   niceScaleDistanceM,
   shouldShowWeaponLabels,
@@ -84,6 +90,11 @@ let last = performance.now();
 let labelBoxes = [];
 let feedCollapsed = false;
 let aboutOpen = false;
+const MAX_CAMERA_SCALE = 0.011;
+
+function minimumCameraScale() {
+  return Math.max(innerWidth / MAP_WIDTH_M, innerHeight / MAP_HEIGHT_M);
+}
 const TACTICAL_SYMBOL_SCALE = 26;
 const CANVAS_FONT_FAMILY = '"Segoe UI", Arial, sans-serif';
 const canvasFont = (px) => `${px}px ${CANVAS_FONT_FAMILY}`;
@@ -96,6 +107,10 @@ const RUN_STATUS = {
   get ended() { return t('status.ended'); }
 };
 
+function replaceHtmlIfChanged(element, html) {
+  if (element.innerHTML !== html) element.innerHTML = html;
+}
+
 function resize() {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.floor(innerWidth * dpr);
@@ -103,6 +118,7 @@ function resize() {
   canvas.style.width = `${innerWidth}px`;
   canvas.style.height = `${innerHeight}px`;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  clampCamera();
 }
 
 function selectedShip() {
@@ -128,6 +144,15 @@ function screenToWorld(x, y) {
 function drawSceneBase() {
   ctx.fillStyle = "#07141b";
   ctx.fillRect(0, 0, innerWidth, innerHeight);
+}
+
+function clampCamera() {
+  const minScale = minimumCameraScale();
+  camera.scale = Math.max(minScale, Math.min(MAX_CAMERA_SCALE, camera.scale));
+  const halfViewW = innerWidth / (2 * camera.scale);
+  const halfViewH = innerHeight / (2 * camera.scale);
+  camera.x = Math.max(-MAP_HALF_WIDTH_M + halfViewW, Math.min(MAP_HALF_WIDTH_M - halfViewW, camera.x));
+  camera.y = Math.max(-MAP_HALF_HEIGHT_M + halfViewH, Math.min(MAP_HALF_HEIGHT_M - halfViewH, camera.y));
 }
 
 function worldSize(meters, minPx = 2, maxPx = 24, multiplier = TACTICAL_SYMBOL_SCALE) {
@@ -237,7 +262,7 @@ function drawWeaponRangeRings(ship) {
       const labelX = Math.max(54, Math.min(innerWidth - 48, p.x + radius + 3));
       const antiAirOffset = entry.id === "ESSM" ? 8 : entry.id === "SM-2MR" ? -2 : 0;
       const labelY = Math.max(78, Math.min(innerHeight - 48, p.y - 3 + antiAirOffset));
-      ctx.fillText(`${entry.shortLabel} ${formatDistanceKm(entry.rangeM)}`, labelX, labelY);
+      ctx.fillText(entry.shortLabel, labelX, labelY);
       ctx.globalAlpha = 1;
     }
   }
@@ -288,15 +313,13 @@ function drawScaledShip(ship) {
   ctx.restore();
 
   ctx.save();
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = ship.alive ? 0.96 : 0.5;
   ctx.fillStyle = color;
   ctx.font = canvasFont(VISUAL_CONFIG.shipLabelPx);
-  const roleTag = ship.isOTC ? ` ◈${roleLabel('OTC')}` : ship.fleetRole === "AAWC" ? ` ·${roleLabel('AAWC')}` : "";
-  const displayHull = hullLabel(ship.hull);
-  const seqNum = ship.id.replace(ship.hull + '-', '');
-  ctx.fillText(`${displayHull}-${seqNum}${roleTag}`, p.x + len * 0.48 + 3, p.y - 5);
+  ctx.fillText(shipDisplayName(ship, "-"), p.x + len * 0.48 + 3, p.y - 5);
   ctx.restore();
-  if (ship.alive && (ship.speed > 0.1 || ship.desiredSpeed > 0.1)) {
+
+  if (sim.mode !== SCENARIO_MODE.SETUP && ship.alive && (ship.speed > 0.1 || ship.desiredSpeed > 0.1)) {
     const hasVelocity = Math.hypot(ship.vx ?? 0, ship.vy ?? 0) > 0.1;
     const direction = hasVelocity ? Math.atan2(ship.vy, ship.vx) : (Number.isFinite(ship.heading) ? ship.heading : 0);
     const arrowLength = Math.max(18, Math.min(34, len * 2.8));
@@ -370,21 +393,6 @@ function drawTracks() {
       ctx.moveTo(p.x, p.y - mark);
       ctx.lineTo(p.x, p.y + mark);
       ctx.stroke();
-      const alpha = labelAlpha(track.quality > 0.65);
-      if (alpha > 0.05) {
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = sideColor(track.side);
-        const contact = sim.ships.find((s) => s.id === track.id);
-        const label = contact?.hull ?? (track.classification?.includes("combatant") ? "SURF" : track.classification);
-        const text = `${label} Q${Math.round(track.quality * 100)}`;
-        const font = canvasFont(VISUAL_CONFIG.shipLabelPx);
-        ctx.font = font;
-        if (reserveLabel(text, p.x + mark + 4, p.y + 11, font, track.quality > 0.88)) {
-          ctx.fillText(text, p.x + mark + 4, p.y + 11);
-        }
-        ctx.restore();
-      }
     }
   }
 }
@@ -402,8 +410,6 @@ function drawMissiles() {
       19
     );
     const iconColor = missile.terminal ? "#f7b955" : sideColor(missile.side);
-    const labelColor = sideColor(missile.side);
-    const labelOffset = ((missile.launchSequence ?? 0) % 5) * 3.5;
     const target = spec?.target === "missile"
       ? sim.missiles.find((m) => m.id === missile.targetId)
       : sim.ships.find((s) => s.id === missile.targetId);
@@ -448,25 +454,6 @@ function drawMissiles() {
     ctx.fill();
     ctx.stroke();
     ctx.restore();
-    ctx.save();
-    ctx.globalAlpha = shouldShowWeaponLabels(camera.scale) ? labelAlpha(missile.terminal) * 0.95 : 0;
-    if (ctx.globalAlpha > 0.04) {
-      const text = spec?.shortLabel ?? missile.missileId;
-      const font = canvasFont(VISUAL_CONFIG.missileLabelPx);
-      const labelX = p.x + size + 2 + (((missile.launchSequence ?? 0) % 3) - 1) * 4;
-      const labelY = p.y - 2 + labelOffset;
-      if (!reserveLabel(text, labelX, labelY, font, missile.terminal)) {
-        ctx.restore();
-        continue;
-      }
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "rgba(5, 12, 16, .92)";
-      ctx.font = font;
-      ctx.strokeText(text, labelX, labelY);
-      ctx.fillStyle = labelColor;
-      ctx.fillText(text, labelX, labelY);
-    }
-    ctx.restore();
   }
 }
 
@@ -508,7 +495,7 @@ function drawSelectionBox() {
 function renderShipDetails() {
   // Build compact detail cards for selected ships (right-click+drag selected)
   const detailShips = sim.ships.filter(s => s.alive && selectedIds.has(s.id));
-  if (!detailShips.length) { shipDetailOverlay.innerHTML = ''; return; }
+  if (!detailShips.length) { replaceHtmlIfChanged(shipDetailOverlay, ''); return; }
   const cardWidth = 120;
   const cardGap = 2;
   const rightInset = 6;
@@ -539,7 +526,7 @@ function renderShipDetails() {
     `;
     return `<div class="ship-detail-card" style="--ship-accent:${color};--ship-card-width:${cardWidth}px">
       <div class="ship-detail-heading">
-        <b>${hullLabel(s.hull)} ${s.id}</b>
+        <b>${shipDisplayName(s, "")}</b>
         <span style="color:${hp.currentHp < hp.maxHp ? '#f7b955' : ''}">HP ${hp.currentHp}/${hp.maxHp}</span>
       </div>
       <div class="ship-detail-grid">
@@ -552,7 +539,7 @@ function renderShipDetails() {
       </div>
     </div>`;
   };
-  shipDetailOverlay.innerHTML = detailShips.map(s => cardHtml(s)).join('');
+  replaceHtmlIfChanged(shipDetailOverlay, detailShips.map(s => cardHtml(s)).join(''));
 }
 
 
@@ -602,6 +589,9 @@ function drawTerrain() {
   ctx.strokeStyle = "#ffffff";
   ctx.lineWidth = 1.8 / camera.scale;
   ctx.stroke(paths.coast);
+  ctx.strokeStyle = "rgba(255,255,255,.88)";
+  ctx.lineWidth = 1.4 / camera.scale;
+  ctx.strokeRect(-MAP_HALF_WIDTH_M, -MAP_HALF_HEIGHT_M, MAP_WIDTH_M, MAP_HEIGHT_M);
   ctx.restore();
 }
 
@@ -615,16 +605,16 @@ function renderScaleBar() {
 function renderPanels() {
   clock.textContent = formatTime(sim.time);
   play.textContent = sim.mode === SCENARIO_MODE.SETUP || sim.paused ? "▶" : "Ⅱ";
-  status.innerHTML = renderBattleStatus(sim);
+  replaceHtmlIfChanged(status, renderBattleStatus(sim));
   const orderedShips = [...sim.ships].sort((a, b) => a.side.localeCompare(b.side) || a.id.localeCompare(b.id));
-  unitTab.innerHTML = inventoryHtml(orderedShips, (id) => selectedIds.has(id));
+  replaceHtmlIfChanged(unitTab, inventoryHtml(orderedShips, (id) => selectedIds.has(id)));
   applyI18n();
   renderScaleBar();
   const placementEnabled = canAddAssets(sim);
   document.querySelectorAll('[data-tool="blue"], [data-tool="red"], #ship-class').forEach((el) => {
     el.disabled = !placementEnabled;
   });
-  eventLog.innerHTML = sim.events.map((e) => {
+  replaceHtmlIfChanged(eventLog, sim.events.map((e) => {
     const sLabel = sideLabel(e.side);
     const sideClass = e.side === 'BLUE' ? 'blue' : e.side === 'RED' ? 'red' : '';
     const sideWidth = getLang() === 'zh' ? '14px' : '12px';
@@ -633,7 +623,7 @@ function renderPanels() {
       <b class="event-side ${sideClass}">${sLabel}</b>
       <span class="event-text">${translateEventText(e.text)}</span>
     </div>`;
-  }).join("");
+  }).join(""));
 }
 
 function setFeedCollapsed(nextCollapsed) {
@@ -649,13 +639,15 @@ function setFeedCollapsed(nextCollapsed) {
 
 function render() {
   labelBoxes = [];
+  clampCamera();
   drawSceneBase();
   drawGrid();
   drawTerrain();
   for (const ship of sim.ships) drawWeaponRangeRings(ship);
   drawRadarRings();
-  const focus = sim.ships.find((candidate) => candidate.id === sim.selectedId && selectedIds.has(candidate.id));
-  if (focus) drawSectorResponsibility(focus);
+  for (const ship of sim.ships) {
+    if (selectedIds.has(ship.id)) drawSectorResponsibility(ship);
+  }
   if (filters.tracks.classList.contains("active")) drawTracks();
   for (const ship of sim.ships) drawScaledShip(ship);
   drawMissiles();
@@ -699,10 +691,11 @@ canvas.addEventListener("wheel", (event) => {
   event.preventDefault();
   const before = screenToWorld(event.clientX, event.clientY);
   camera.scale *= event.deltaY < 0 ? 1.12 : 0.89;
-  camera.scale = Math.max(0.00055, Math.min(0.011, camera.scale));
+  camera.scale = Math.max(minimumCameraScale(), Math.min(MAX_CAMERA_SCALE, camera.scale));
   const after = screenToWorld(event.clientX, event.clientY);
   camera.x += before.x - after.x;
   camera.y += before.y - after.y;
+  clampCamera();
 });
 canvas.addEventListener("pointerdown", (event) => {
   const world = screenToWorld(event.clientX, event.clientY);
@@ -756,12 +749,14 @@ canvas.addEventListener("pointermove", (event) => {
       if (ship) {
         ship.x = world.x + drag.ox;
         ship.y = world.y + drag.oy;
+        clampShipToBounds(sim, ship);
         ship.waypoint = null;
         ship.tracks.clear();
       }
     } else if (drag.type === "pan") {
       camera.x = drag.cx - (event.clientX - drag.x) / camera.scale;
       camera.y = drag.cy - (event.clientY - drag.y) / camera.scale;
+      clampCamera();
     } else if (drag.type === "box-select" && selectionBox) {
       selectionBox.x1 = event.clientX;
       selectionBox.y1 = event.clientY;

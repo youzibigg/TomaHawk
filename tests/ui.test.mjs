@@ -9,6 +9,9 @@ import {
   shipHpState,
   vlsLoadState,
   displayCount,
+  inventoryHpColor,
+  inventoryVlsColor,
+  inventoryMissileColor,
   commandPosture,
   postureBar,
   renderBattleStatus,
@@ -16,6 +19,7 @@ import {
   inventoryRowHtml,
   inventoryHtml
 } from "../src/ui/view.js";
+import { setLang, t } from "../src/ui/lang.js";
 
 const camera = { x: 1000, y: -500, scale: 0.0022 };
 const viewW = 1280;
@@ -52,6 +56,19 @@ test("vlsLoadState reports a full default destroyer magazine", () => {
   assert.equal(vls.cap, 96);
   assert.ok(vls.used <= vls.cap);
   assert.ok(vls.fill > 0 && vls.fill <= 1);
+});
+
+test("inventory color helpers map hp, vls, and missile states to the requested thresholds", () => {
+  const ship = createScenario(1).ships[0];
+  assert.equal(inventoryHpColor({ damageResist: 2, damage: 0 }), "#5fd58c");
+  assert.equal(inventoryHpColor({ damageResist: 2, damage: 2 }), "#4e6972");
+  assert.equal(inventoryHpColor({ damageResist: 2, damage: 1 }), "#f7b955");
+  assert.equal(inventoryVlsColor({ loadout: {} , vlsCells: 96 }), "#4e6972");
+  assert.equal(inventoryVlsColor({ loadout: { MaritimeStrike: 80 }, vlsCells: 96 }), "#5fd58c");
+  assert.equal(inventoryVlsColor({ loadout: { MaritimeStrike: 20 }, vlsCells: 96 }), "#f28d4e");
+  assert.equal(inventoryMissileColor(ship, "ESSM"), "#ffffff");
+  assert.equal(inventoryMissileColor({ hull: ship.hull, loadout: { ESSM: 1 } }, "ESSM"), "#f7b955");
+  assert.equal(inventoryMissileColor({ hull: ship.hull, loadout: { ESSM: 0 } }, "ESSM"), "#4e6972");
 });
 
 test("displayCount returns non-negative integers and tolerates junk", () => {
@@ -98,6 +115,14 @@ test("inventory row is a selectable button carrying the ship id and HP/VLS cells
   assert.match(row, /\/96</); // VLS capacity cell
 });
 
+test("inventory row localizes the ship name in Chinese", () => {
+  setLang("zh");
+  const ship = { ...createScenario(7).ships[1], id: "CG-2", hull: "CCG" };
+  const row = inventoryRowHtml(ship, false);
+  assert.match(row, /巡洋舰-2/);
+  setLang("en");
+});
+
 test("inventoryHtml inserts a divider between sides and a row per ship", () => {
   const sim = createScenario(5);
   const ordered = [...sim.ships].sort((a, b) => a.side.localeCompare(b.side) || a.id.localeCompare(b.id));
@@ -105,4 +130,10 @@ test("inventoryHtml inserts a divider between sides and a row per ship", () => {
   const rows = (html.match(/inventory-row/g) || []).length;
   assert.equal(rows, sim.ships.length);
   assert.match(html, /inventory-divider/);
+});
+
+test("tracks toggle uses 锁定 in Chinese", () => {
+  setLang("zh");
+  assert.equal(t("opt.tracks"), "锁定");
+  setLang("en");
 });

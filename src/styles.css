@@ -115,6 +115,9 @@ input {
   gap: 1px;
   padding: 3px 4px 4px;
   z-index: 3;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 
 #spawn-heading {
