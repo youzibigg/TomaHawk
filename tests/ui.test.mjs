@@ -17,13 +17,48 @@ import {
   renderBattleStatus,
   inventoryHeadHtml,
   inventoryRowHtml,
-  inventoryHtml
+  inventoryHtml,
+  clusterProximityLabels
 } from "../src/ui/view.js";
 import { setLang, t } from "../src/ui/lang.js";
 
 const camera = { x: 1000, y: -500, scale: 0.0022 };
 const viewW = 1280;
 const viewH = 720;
+
+test("spatial missile-label clustering preserves connected proximity groups", () => {
+  const items = Array.from({ length: 300 }, (_, index) => ({
+    id: index,
+    x: (index * 73) % 640,
+    y: (index * 131) % 360,
+    cx: (index * 73) % 640 + 4,
+    cy: (index * 131) % 360 - 3
+  }));
+  const threshold = 18;
+  const expected = [];
+  const visited = new Set();
+  for (let i = 0; i < items.length; i++) {
+    if (visited.has(i)) continue;
+    const stack = [i];
+    const group = [];
+    visited.add(i);
+    while (stack.length) {
+      const index = stack.pop();
+      group.push(items[index].id);
+      for (let j = 0; j < items.length; j++) {
+        if (visited.has(j)) continue;
+        if (Math.abs(items[index].x - items[j].x) <= threshold && Math.abs(items[index].y - items[j].y) <= threshold) {
+          visited.add(j);
+          stack.push(j);
+        }
+      }
+    }
+    expected.push(group.sort((a, b) => a - b));
+  }
+  const actual = clusterProximityLabels(items, threshold)
+    .map((cluster) => cluster.items.map((item) => item.id).sort((a, b) => a - b));
+  assert.deepEqual(actual, expected);
+});
 
 test("worldToScreen and screenToWorld are exact inverses", () => {
   const p = { x: 42345, y: -98765 };

@@ -12,7 +12,7 @@ export function eventSeverity(text) {
 
 export function addEvent(sim, text, side = "SYS") {
   sim.events.unshift({ t: sim.time, side, text, severity: eventSeverity(text) });
-  sim.events = sim.events.slice(0, 500);
+  if (sim.events.length > 500) sim.events.pop();
 }
 
 export function formatTime(t) {

@@ -17,6 +17,7 @@ import {
   clampShipToBounds,
   chooseDefensiveWeapon,
   clearSide,
+  createDefaultScenario,
   createScenario,
   defaultRoe,
   defaultLoadout,
@@ -29,13 +30,16 @@ import {
   placeShip,
   restoreScenario,
   serializeScenario,
+  setScenarioMap,
   setLoadout,
   stepSim,
+  moveShips,
   usedCells,
   validateLoadout,
   weaponRangeEntries,
   wrapAngle
 } from "../src/sim.js";
+import { isWaterPoint, projectLonLat } from "../src/world/terrain.js";
 
 function runningScenarioMode(seed = 1) {
   const sim = createScenario(seed);
@@ -85,14 +89,23 @@ test("default scenario creates one blue and one red destroyer", () => {
   assert.equal(sim.mode, SCENARIO_MODE.SETUP);
   assert.equal(Math.abs(sim.ships[0].x - sim.ships[1].x), 40 * NM);
   assert.equal(Math.abs(sim.ships[0].x - sim.ships[1].x) / NM, 40);
-  assert.equal(sim.widthM, 2880 * NM);
-  assert.equal(sim.heightM, 1440 * NM);
+  assert.equal(sim.widthM, 6480 * NM);
+  assert.equal(sim.heightM, 3456 * NM);
 });
 
 test("default ship headings point blue left and red right before battle starts", () => {
   const sim = createScenario(1);
   assert.equal(sim.ships[0].heading, Math.PI);
   assert.equal(sim.ships[1].heading, 0);
+});
+
+test("default app scenario loads the supplied 4v4 east china sea template", () => {
+  const sim = createDefaultScenario(1);
+  assert.equal(sim.ships.length, 8);
+  assert.equal(sim.ships.filter((s) => s.side === SIDE.BLUE).length, 4);
+  assert.equal(sim.ships.filter((s) => s.side === SIDE.RED).length, 4);
+  assert.equal(sim.mapId, "eastChinaSea");
+  assert.equal(sim.mode, SCENARIO_MODE.SETUP);
 });
 
 test("loadout validation enforces 96-cell VLS capacity", () => {
@@ -349,6 +362,35 @@ test("default sandbox produces sustained combat and uses area defense on a known
   assert.ok(sim.ships.some((ship) => (ship.loadout.MaritimeStrike ?? 16) < 16 || (ship.loadout["SM-6"] ?? 16) < 16));
 });
 
+test("setup rejects placing a ship on land in East China Sea mode", () => {
+  const sim = createScenario(76, "eastChinaSea");
+  const shanghai = projectLonLat(121.47, 31.23);
+  const placed = placeShip(sim, SIDE.BLUE, shanghai.x, shanghai.y, "DDG");
+  assert.equal(placed, null);
+  assert.equal(sim.ships.length, 2);
+});
+
+test("map selection persists in saves and cannot change once the simulation is running", () => {
+  const sim = createScenario(77, "openSea");
+  assert.equal(setScenarioMap(sim, "eastChinaSea").ok, true);
+  assert.equal(sim.mapId, "eastChinaSea");
+  const restored = restoreScenario(serializeScenario(sim));
+  assert.equal(restored.mapId, "eastChinaSea");
+  sim.mode = SCENARIO_MODE.RUNNING;
+  sim.paused = false;
+  const result = setScenarioMap(sim, "openSea");
+  assert.equal(result.ok, false);
+  assert.equal(sim.mapId, "eastChinaSea");
+});
+
+test("map changes in setup reseat ships onto open water for the new terrain", () => {
+  const sim = createScenario(78, "openSea");
+  placeShip(sim, SIDE.BLUE, 0, 0, "CCG");
+  const result = setScenarioMap(sim, "eastChinaSea");
+  assert.equal(result.ok, true);
+  assert.ok(sim.ships.every((ship) => isWaterPoint(ship, sim.mapId)));
+});
+
 test("missile definitions include tactical display metadata", () => {
   for (const [id, spec] of Object.entries(MISSILES)) {
     assert.ok(["anti_ship", "anti_air", "dual_role"].includes(spec.category), `${id} category`);
@@ -569,8 +611,8 @@ test("scenario restore normalizes invalid dimensions and ship coordinates", () =
 
   const restored = restoreScenario(data);
   assert.equal(restored.seed, 0);
-  assert.equal(restored.widthM, 2880 * NM);
-  assert.equal(restored.heightM, 1440 * NM);
+  assert.equal(restored.widthM, 6480 * NM);
+  assert.equal(restored.heightM, 3456 * NM);
   assert.equal(restored.ships[0].x, 0);
   assert.equal(restored.ships[0].y, 0);
 });
@@ -1001,6 +1043,22 @@ test("strike-empty ships retreat from contact instead of closing", () => {
   stepSim(sim, 0.25);
   assert.ok(blue.waypoint.x < blue.x, "retreat waypoint opens range from the enemy track");
   assert.ok(blue.desiredSpeed >= blue.maxSpeed * 0.85, "retreat uses high sustained speed");
+});
+
+test("terrain-aware movement keeps ships on water even when given an inland waypoint", () => {
+  const sim = createScenario(79, "eastChinaSea");
+  const blue = sim.ships.find((s) => s.side === SIDE.BLUE);
+  const start = projectLonLat(122.3, 30.9);
+  const inland = projectLonLat(121.47, 31.23);
+  blue.x = start.x;
+  blue.y = start.y;
+  blue.heading = Math.PI;
+  blue.speed = blue.cruiseSpeed;
+  blue.desiredSpeed = blue.cruiseSpeed;
+  blue.waypoint = inland;
+  moveShips(sim, 0.25);
+  assert.equal(isWaterPoint(blue, sim.mapId), true);
+  assert.notEqual(blue.navigationWaypoint, null);
 });
 
 test("endgame fire planner releases reserve strike weapons when enemy is strike-empty", () => {

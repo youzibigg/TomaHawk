@@ -40,6 +40,7 @@ Ships do not receive perfect enemy positions for decision-making. Radar produces
 - source identifier.
 
 Lost tracks age out. Shared tracks degrade in quality. The UI can inspect truth for own units, but hostile targeting logic uses perceived tracks.
+Friendly and self contacts are not inserted into radar track maps because their truth state is already available to their own force.
 
 ## Doctrine
 
@@ -50,6 +51,13 @@ Doctrine is a simplified Observe/Orient/Decide/Act loop:
 - launch anti-surface missiles when track quality and range permit,
 - maneuver and fire defensive weapons against inbound missiles.
 - counterfire when under attack if a good enough hostile track exists.
+
+Ship navigation now treats terrain as a binary navigability problem: a point is
+either water or not water. There is no shallow/deep-water model, no draft-based
+channel logic, and no beaching state. Setup rejects new placements on land,
+dragging preserves the last valid water position, map changes are setup-only,
+and running ships either follow a deterministic coastal detour or stop/replan
+at the last safe water point rather than crossing land.
 
 Combat firing is now planned at the force level once per second. The planner allocates defensive interceptors to inbound missiles and offensive salvos to hostile ships using local/shared tracks, current queue state, active missiles, track quality, range, magazine depth, and a side-wide command posture. Defensive assignment does not wait for a stale force-wide composite if a local ship already has the inbound threat on radar. That posture is deliberately estimate-based: the commander only sees its own inventory plus the observed enemy picture, then raises aggressiveness when the side has more useful VLS and missile depth and lowers it when missile pressure is high. The force does not directly convert every posture tick into a new mood; instead it moves through persistent strike modes with hysteresis, closer to a real task group committing to a plan for some period of time. High aggression is not just a label: it shortens offensive commit delays, allows more strike allocations per planning pass, and keeps more pressure on already-targeted ships, so a force with advantage actually behaves like a force attempting saturation. This avoids suppressing every other friendly ship simply because one ship already fired.
 
@@ -111,6 +119,11 @@ Normal anti-ship doctrine orders four-round salvos from each ship that has a val
 
 The default destroyers begin 40 NM apart, 20 NM on each side of the origin. This is a gameplay choice for immediate tactical testing at real ship speed, not a claim about real-world doctrine. Setup mode lets the player drag ships, add multiple destroyers, right-click or box-select ships, and delete selected ships before running the battle.
 
+Map switching is not a live-simulation feature. The tactical map may only be
+changed in `setup`; changing it resets the existing forces onto deterministic
+open-water starts valid for the newly selected map while preserving the ships
+themselves and their configured loadouts/doctrine.
+
 Amber/yellow missile rendering means terminal/endgame phase. For anti-ship missiles this begins inside the modeled terminal envelope; for interceptors it represents the final intercept endgame.
 
 Ship movement now runs at true real-world speed (`SHIP_SPEED_MULTIPLIER = 1`). The
@@ -152,12 +165,13 @@ A 4/3 Earth-radius model limits detection probability beyond the geometric horiz
 
 ### CEC Latency
 Track sharing now has a 1.8s propagation delay. Tracks younger than the latency window are not shared to other units. Shared track quality is degraded (0.85×) with increased uncertainty (+1500m).
+CEC selects from local sensor reports only, so a track cannot relay through multiple ships. One shared report is stored per side/contact and resolved together with each receiver's local reports; it is not copied into every receiving ship. The fused force picture refreshes fully every 0.5s and updates dirty contacts immediately when radar or CEC data changes.
 
 ### UI: Ship Detail Popup
 Compact overlay cards showing subsystem health, effective speed, and CIWS ammo. Appears on right-click+drag ship selection. Multiple ships selectable simultaneously. Clears on right-click blank space.
 
 ### Performance
-Pre-computed indexes (`_missilesByTarget`, `_shipsBySide`, `_aliveShips`) avoid repeated O(n) filters in hot-path functions. Benchmark: 8,300+ ticks/sec on 4v4 battle (8 ships, 150+ missiles). ~555× sim-rate headroom at 60fps.
+Persistent entity indexes and per-planning-cycle target, side, queue, track, and engagement indexes avoid repeated O(n) scans in hot paths. Track ageing uses lazy state projection plus an expiry heap; CEC stores one shared side/contact report; sensor scans use a deterministic adaptive spatial broad phase. Terrain uses conservative raster/grid broad phases followed by exact polygon checks, and blocked-route plans are reused for their cache window. The UI caches stable DOM panels and range metadata, clusters labels spatially, resolves targets through entity indexes, and culls offscreen symbols. `npm run bench` reports Open Sea combat throughput and determinism plus an East China Sea route case; `npm run bench:frontend` measures isolated high-density rendering helpers. Results are machine-dependent.
 
 ### Scenario Default
 Default starting distance reduced from 120 NM to 40 NM so engagements begin within 1-2 minutes at 1× speed.

@@ -13,6 +13,7 @@
     "refresh:start": "node scripts/build-east-china-sea-map.mjs && node server.mjs",
     "test": "node --test",
     "bench": "node scripts/bench.mjs",
+    "bench:frontend": "node scripts/bench-frontend.mjs",
     "map:data": "node scripts/build-east-china-sea-map.mjs"
   }
 }

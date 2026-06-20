@@ -5,20 +5,24 @@ import {
   SIDE,
   SHIP_CLASSES,
   VISUAL_CONFIG,
+  battleSummaryCounts,
   canRunScenario,
   canAddAssets,
   clampShipToBounds,
-  createScenario,
+  createDefaultScenario,
   deleteShip,
   distance,
   eventSeverity,
   exportAfterAction,
   formatTime,
+  isShipPositionOnWater,
   placeShip,
   restoreScenario,
   serializeScenario,
+  setScenarioMap,
   setLoadout,
   stepSim,
+  tracksForShip,
   weaponRangeEntries
 } from "./sim.js";
 import {
@@ -29,6 +33,7 @@ import {
   vlsLoadState,
   renderBattleStatus,
   inventoryHtml,
+  clusterProximityLabels,
   worldToScreen as projectWorldToScreen,
   screenToWorld as projectScreenToWorld
 } from "./ui/view.js";
@@ -78,7 +83,7 @@ const filters = {
   missiles: document.querySelector("#filter-missiles")
 };
 
-let sim = createScenario();
+let sim = createDefaultScenario(undefined, mapSelect?.value);
 let tool = "select";
 let camera = { x: 0, y: 0, scale: 0.00125 };
 let drag = null;
@@ -99,6 +104,20 @@ const TACTICAL_SYMBOL_SCALE = 26;
 const CANVAS_FONT_FAMILY = '"Segoe UI", Arial, sans-serif';
 const canvasFont = (px) => `${px}px ${CANVAS_FONT_FAMILY}`;
 const terrainPathCache = new WeakMap();
+const weaponRangeCache = new WeakMap();
+const terrainLayer = document.createElement("canvas");
+const terrainLayerCtx = terrainLayer.getContext("2d");
+let terrainLayerKey = "";
+const panelRenderCache = {
+  lang: null,
+  status: "",
+  inventory: "",
+  events: "",
+  eventHead: null,
+  details: "",
+  placement: "",
+  scale: ""
+};
 const RUN_STATUS = {
   get ready() { return t('status.ready'); },
   get invalid() { return t('status.invalid'); },
@@ -118,6 +137,7 @@ function resize() {
   canvas.style.width = `${innerWidth}px`;
   canvas.style.height = `${innerHeight}px`;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  terrainLayerKey = "";
   clampCamera();
 }
 
@@ -141,6 +161,34 @@ function screenToWorld(x, y) {
   return projectScreenToWorld(x, y, camera, innerWidth, innerHeight);
 }
 
+function screenPointVisible(point, margin = 32) {
+  return point.x >= -margin && point.x <= innerWidth + margin
+    && point.y >= -margin && point.y <= innerHeight + margin;
+}
+
+function segmentIntersectsViewport(a, b, margin = 0) {
+  const minX = -margin;
+  const maxX = innerWidth + margin;
+  const minY = -margin;
+  const maxY = innerHeight + margin;
+  if (screenPointVisible(a, margin) || screenPointVisible(b, margin)) return true;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  let low = 0;
+  let high = 1;
+  for (const [p, q] of [[-dx, a.x - minX], [dx, maxX - a.x], [-dy, a.y - minY], [dy, maxY - a.y]]) {
+    if (p === 0) {
+      if (q < 0) return false;
+      continue;
+    }
+    const t = q / p;
+    if (p < 0) low = Math.max(low, t);
+    else high = Math.min(high, t);
+    if (low > high) return false;
+  }
+  return true;
+}
+
 function drawSceneBase() {
   ctx.fillStyle = "#07141b";
   ctx.fillRect(0, 0, innerWidth, innerHeight);
@@ -157,6 +205,28 @@ function clampCamera() {
 
 function worldSize(meters, minPx = 2, maxPx = 24, multiplier = TACTICAL_SYMBOL_SCALE) {
   return Math.max(minPx, Math.min(maxPx, meters * camera.scale * multiplier));
+}
+
+function shipLabelScale() {
+  const scaleMeters = niceScaleDistanceM(camera.scale, 72).meters;
+  if (scaleMeters <= 20 * KM) return { scale: 1, alpha: 1 };
+  if (scaleMeters <= 50 * KM) {
+    const t = (scaleMeters - 20 * KM) / (30 * KM);
+    return { scale: 1 - t * 0.16, alpha: 1 };
+  }
+  if (scaleMeters <= 100 * KM) {
+    const t = (scaleMeters - 50 * KM) / (50 * KM);
+    return { scale: 0.84 - t * 0.34, alpha: 1 - t * 0.18 };
+  }
+  if (scaleMeters <= 200 * KM) {
+    const t = (scaleMeters - 100 * KM) / (100 * KM);
+    return { scale: 0.5 - t * 0.5, alpha: 0.82 - t * 0.82 };
+  }
+  return { scale: 0, alpha: 0 };
+}
+
+function clusterSameTypeMissileLabels(items, thresholdPx) {
+  return clusterProximityLabels(items, thresholdPx);
 }
 
 function labelAlpha(force = false) {
@@ -230,13 +300,22 @@ function ringDash(style) {
   return [];
 }
 
+function cachedWeaponRangeEntries(ship) {
+  const key = Object.entries(ship.loadout).map(([id, count]) => `${id}:${count}`).join("|");
+  const cached = weaponRangeCache.get(ship);
+  if (cached?.key === key) return cached.entries;
+  const entries = weaponRangeEntries(ship);
+  weaponRangeCache.set(ship, { key, entries });
+  return entries;
+}
+
 function drawWeaponRangeRings(ship) {
   if (!filters.ranges.classList.contains("active") || !ship.alive) return;
   if (filters.rangesMode.value === "off") return;
   const p = worldToScreen(ship);
   const selected = ship.id === sim.selectedId;
   if (filters.rangesMode.value === "selected" && !selected) return;
-  const entries = weaponRangeEntries(ship);
+  const entries = cachedWeaponRangeEntries(ship);
   ctx.save();
   for (const entry of entries) {
     const radius = entry.rangeM * camera.scale;
@@ -270,11 +349,12 @@ function drawWeaponRangeRings(ship) {
   ctx.restore();
 }
 
-function drawScaledShip(ship) {
+function drawScaledShip(ship, label) {
   const p = worldToScreen(ship);
+  if (!screenPointVisible(p, 48)) return;
   const color = sideColor(ship.side);
   const selected = ship.id === sim.selectedId;
-  const len = worldSize(ship.lengthM, 3.5, 25);
+  const len = worldSize(ship.lengthM, 4, 25);
   const beam = Math.max(2.25, Math.min(8, len * 0.28));
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -313,9 +393,9 @@ function drawScaledShip(ship) {
   ctx.restore();
 
   ctx.save();
-  ctx.globalAlpha = ship.alive ? 0.96 : 0.5;
+  ctx.globalAlpha = (ship.alive ? 0.96 : 0.34) * label.alpha;
   ctx.fillStyle = color;
-  ctx.font = canvasFont(VISUAL_CONFIG.shipLabelPx);
+  ctx.font = canvasFont(Math.max(7, VISUAL_CONFIG.shipLabelPx * label.scale));
   ctx.fillText(shipDisplayName(ship, "-"), p.x + len * 0.48 + 3, p.y - 5);
   ctx.restore();
 
@@ -376,9 +456,10 @@ function drawSectorResponsibility(ship) {
 function drawTracks() {
   for (const ship of sim.ships) {
     if (ship.id !== sim.selectedId) continue;
-    for (const track of ship.tracks.values()) {
+    for (const track of tracksForShip(sim, ship)) {
       const p = worldToScreen(track);
       const r = Math.max(3, track.uncertainty * camera.scale);
+      if (!screenPointVisible(p, r + 8)) continue;
       const mark = worldSize(120, 2, 6, 24);
       ctx.strokeStyle = `${sideColor(track.side)}88`;
       ctx.fillStyle = `${sideColor(track.side)}20`;
@@ -397,34 +478,44 @@ function drawTracks() {
   }
 }
 
-function drawMissiles() {
+function drawMissiles(label) {
   if (!filters.missiles.classList.contains("active")) return;
+  const labelFontPx = Math.max(7, VISUAL_CONFIG.shipLabelPx * 0.4 * label.scale);
+  const missileLabelsByType = new Map();
+  const labelWidths = new Map();
+  ctx.save();
+  ctx.font = canvasFont(labelFontPx);
   for (const missile of sim.missiles) {
     const p = worldToScreen(missile);
+    const iconVisible = screenPointVisible(p, 24);
     const spec = MISSILES[missile.missileId];
     const isAntiAir = spec?.category === "anti_air";
     const size = worldSize(
       isAntiAir ? 34 : 52,
-      VISUAL_CONFIG.missileMinPx * (isAntiAir ? 0.7 : 0.9),
+      Math.max(2.2, VISUAL_CONFIG.missileMinPx * (isAntiAir ? 0.85 : 1)),
       VISUAL_CONFIG.missileMaxPx * (isAntiAir ? 0.7 : 0.9),
       19
     );
     const iconColor = missile.terminal ? "#f7b955" : sideColor(missile.side);
-    const target = spec?.target === "missile"
-      ? sim.missiles.find((m) => m.id === missile.targetId)
-      : sim.ships.find((s) => s.id === missile.targetId);
+    const targetCandidate = spec?.target === "missile"
+      ? (sim._missileById?.get(missile.targetId) ?? sim.missiles.find((m) => m.id === missile.targetId))
+      : (sim._shipById?.get(missile.targetId) ?? sim.ships.find((s) => s.id === missile.targetId));
+    const target = targetCandidate?.alive ? targetCandidate : null;
     if (target) {
       const t = worldToScreen(target);
-      ctx.save();
-      ctx.strokeStyle = `${sideColor(missile.side)}24`;
-      ctx.lineWidth = missile.terminal ? 0.62 : 0.42;
-      ctx.setLineDash(missile.terminal ? [2, 3] : [7, 6]);
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-      ctx.lineTo(t.x, t.y);
-      ctx.stroke();
-      ctx.restore();
+      if (segmentIntersectsViewport(p, t, 4)) {
+        ctx.save();
+        ctx.strokeStyle = `${sideColor(missile.side)}24`;
+        ctx.lineWidth = missile.terminal ? 0.62 : 0.42;
+        ctx.setLineDash(missile.terminal ? [2, 3] : [7, 6]);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(t.x, t.y);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
+    if (!iconVisible) continue;
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(missile.heading);
@@ -454,6 +545,49 @@ function drawMissiles() {
     ctx.fill();
     ctx.stroke();
     ctx.restore();
+
+    if (label.scale > 0 && label.alpha > 0) {
+      const text = spec?.shortLabel ?? spec?.name ?? "";
+      const anchorX = p.x + size * 0.5 + 2;
+      const anchorY = p.y - 4;
+      let width = labelWidths.get(text);
+      if (width === undefined) {
+        width = ctx.measureText(text).width;
+        labelWidths.set(text, width);
+      }
+      const height = Math.max(7, labelFontPx + 2);
+      const groupKey = `${missile.side}:${missile.missileId}`;
+      if (!missileLabelsByType.has(groupKey)) missileLabelsByType.set(groupKey, []);
+      missileLabelsByType.get(groupKey).push({
+        x: anchorX,
+        y: anchorY,
+        cx: anchorX + width / 2,
+        cy: anchorY - height / 2,
+        width,
+        height,
+        text,
+        color: iconColor,
+        alpha: missile.alive ? 0.96 : 0.34
+      });
+    }
+  }
+  ctx.restore();
+
+  if (label.scale > 0 && label.alpha > 0) {
+    for (const items of missileLabelsByType.values()) {
+      const clusters = clusterSameTypeMissileLabels(items, Math.max(18, labelFontPx * 1.8));
+      for (const cluster of clusters) {
+        const [first] = cluster.items;
+        ctx.save();
+        ctx.globalAlpha = first.alpha * label.alpha;
+        ctx.fillStyle = first.color;
+        ctx.font = canvasFont(labelFontPx);
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(first.text, cluster.x, cluster.y);
+        ctx.restore();
+      }
+    }
   }
 }
 
@@ -495,6 +629,19 @@ function drawSelectionBox() {
 function renderShipDetails() {
   // Build compact detail cards for selected ships (right-click+drag selected)
   const detailShips = sim.ships.filter(s => s.alive && selectedIds.has(s.id));
+  const detailKey = `${getLang()}|${innerHeight}|${detailShips.map((ship) => [
+    ship.id,
+    ship.damage,
+    ship.alive,
+    ship.subsystems?.radar,
+    ship.subsystems?.propulsion,
+    ship.subsystems?.fireControl,
+    ship.subsystems?.ciws,
+    ship.subsystems?.cic,
+    ...Object.values(ship.loadout)
+  ].join(":")).join("|")}`;
+  if (panelRenderCache.details === detailKey) return;
+  panelRenderCache.details = detailKey;
   if (!detailShips.length) { replaceHtmlIfChanged(shipDetailOverlay, ''); return; }
   const cardWidth = 120;
   const cardGap = 2;
@@ -563,7 +710,14 @@ function applyI18n() {
 }
 
 function drawTerrain() {
-  const map = tacticalMap(mapSelect?.value);
+  const map = tacticalMap(sim.mapId);
+  const dpr = window.devicePixelRatio || 1;
+  const key = `${map.id}|${innerWidth}|${innerHeight}|${camera.x.toFixed(2)}|${camera.y.toFixed(2)}|${camera.scale.toFixed(6)}|${dpr.toFixed(2)}`;
+  if (terrainLayer.width !== Math.floor(innerWidth * dpr)) {
+    terrainLayer.width = Math.floor(innerWidth * dpr);
+    terrainLayer.height = Math.floor(innerHeight * dpr);
+    terrainLayerKey = "";
+  }
   let paths = terrainPathCache.get(map);
   if (!paths) {
     paths = {
@@ -580,19 +734,25 @@ function drawTerrain() {
     }
     terrainPathCache.set(map, paths);
   }
-  ctx.save();
-  ctx.translate(innerWidth / 2 - camera.x * camera.scale, innerHeight / 2 - camera.y * camera.scale);
-  ctx.scale(camera.scale, camera.scale);
-  ctx.fillStyle = "#111b1f";
-  ctx.setLineDash([]);
-  for (const landPath of paths.land) ctx.fill(landPath);
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 1.8 / camera.scale;
-  ctx.stroke(paths.coast);
-  ctx.strokeStyle = "rgba(255,255,255,.88)";
-  ctx.lineWidth = 1.4 / camera.scale;
-  ctx.strokeRect(-MAP_HALF_WIDTH_M, -MAP_HALF_HEIGHT_M, MAP_WIDTH_M, MAP_HEIGHT_M);
-  ctx.restore();
+  if (terrainLayerKey !== key) {
+    terrainLayerKey = key;
+    terrainLayerCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    terrainLayerCtx.clearRect(0, 0, innerWidth, innerHeight);
+    terrainLayerCtx.save();
+    terrainLayerCtx.translate(innerWidth / 2 - camera.x * camera.scale, innerHeight / 2 - camera.y * camera.scale);
+    terrainLayerCtx.scale(camera.scale, camera.scale);
+    terrainLayerCtx.fillStyle = "#111b1f";
+    terrainLayerCtx.setLineDash([]);
+    for (const landPath of paths.land) terrainLayerCtx.fill(landPath);
+    terrainLayerCtx.strokeStyle = "#ffffff";
+    terrainLayerCtx.lineWidth = 1.8 / camera.scale;
+    terrainLayerCtx.stroke(paths.coast);
+    terrainLayerCtx.strokeStyle = "rgba(255,255,255,.88)";
+    terrainLayerCtx.lineWidth = 1.4 / camera.scale;
+    terrainLayerCtx.strokeRect(-MAP_HALF_WIDTH_M, -MAP_HALF_HEIGHT_M, MAP_WIDTH_M, MAP_HEIGHT_M);
+    terrainLayerCtx.restore();
+  }
+  ctx.drawImage(terrainLayer, 0, 0, innerWidth, innerHeight);
 }
 
 function renderScaleBar() {
@@ -603,27 +763,72 @@ function renderScaleBar() {
 }
 
 function renderPanels() {
+  const lang = getLang();
   clock.textContent = formatTime(sim.time);
   play.textContent = sim.mode === SCENARIO_MODE.SETUP || sim.paused ? "▶" : "Ⅱ";
-  replaceHtmlIfChanged(status, renderBattleStatus(sim));
-  const orderedShips = [...sim.ships].sort((a, b) => a.side.localeCompare(b.side) || a.id.localeCompare(b.id));
-  replaceHtmlIfChanged(unitTab, inventoryHtml(orderedShips, (id) => selectedIds.has(id)));
-  applyI18n();
-  renderScaleBar();
+  const counts = battleSummaryCounts(sim);
+  const postureKey = [SIDE.BLUE, SIDE.RED].map((side) => {
+    const posture = sim.commandState?.get(side);
+    return `${posture?.aggression ?? 0.5}:${posture?.advantage ?? 0}`;
+  }).join("|");
+  const statusKey = `${lang}|${Object.values(counts).join(":")}|${postureKey}`;
+  if (panelRenderCache.status !== statusKey) {
+    panelRenderCache.status = statusKey;
+    replaceHtmlIfChanged(status, renderBattleStatus(sim, counts));
+  }
+  const inventoryKey = `${lang}|${sim.ships.map((ship) => [
+    ship.id,
+    ship.side,
+    ship.alive,
+    ship.damage,
+    selectedIds.has(ship.id),
+    ...Object.values(ship.loadout)
+  ].join(":")).join("|")}`;
+  let inventoryChanged = false;
+  if (panelRenderCache.inventory !== inventoryKey) {
+    panelRenderCache.inventory = inventoryKey;
+    const orderedShips = [...sim.ships].sort((a, b) => a.side.localeCompare(b.side) || a.id.localeCompare(b.id));
+    replaceHtmlIfChanged(unitTab, inventoryHtml(orderedShips, (id) => selectedIds.has(id)));
+    inventoryChanged = true;
+  }
+  const langChanged = panelRenderCache.lang !== lang;
+  if (langChanged || inventoryChanged) {
+    panelRenderCache.lang = lang;
+    applyI18n();
+  }
+  const scaleKey = `${lang}|${camera.scale.toFixed(8)}`;
+  if (panelRenderCache.scale !== scaleKey) {
+    panelRenderCache.scale = scaleKey;
+    renderScaleBar();
+  }
   const placementEnabled = canAddAssets(sim);
-  document.querySelectorAll('[data-tool="blue"], [data-tool="red"], #ship-class').forEach((el) => {
-    el.disabled = !placementEnabled;
-  });
-  replaceHtmlIfChanged(eventLog, sim.events.map((e) => {
-    const sLabel = sideLabel(e.side);
-    const sideClass = e.side === 'BLUE' ? 'blue' : e.side === 'RED' ? 'red' : '';
-    const sideWidth = getLang() === 'zh' ? '14px' : '12px';
-    return `<div class="${eventSeverity(e.text)}" style="grid-template-columns:34px ${sideWidth} minmax(0, 1fr)">
-      <span class="event-time">${formatTime(e.t)}</span>
-      <b class="event-side ${sideClass}">${sLabel}</b>
-      <span class="event-text">${translateEventText(e.text)}</span>
-    </div>`;
-  }).join(""));
+  const placementKey = `${placementEnabled}|${sim.mapId}`;
+  if (panelRenderCache.placement !== placementKey) {
+    panelRenderCache.placement = placementKey;
+    document.querySelectorAll('[data-tool="blue"], [data-tool="red"], #ship-class').forEach((el) => {
+      el.disabled = !placementEnabled;
+    });
+    if (mapSelect) {
+      mapSelect.disabled = !placementEnabled;
+      if (mapSelect.value !== sim.mapId) mapSelect.value = sim.mapId;
+    }
+  }
+  const newestEvent = sim.events[0];
+  const eventKey = `${lang}|${sim.events.length}|${newestEvent?.t ?? ""}|${newestEvent?.side ?? ""}|${newestEvent?.text ?? ""}`;
+  if (panelRenderCache.events !== eventKey || panelRenderCache.eventHead !== newestEvent) {
+    panelRenderCache.events = eventKey;
+    panelRenderCache.eventHead = newestEvent;
+    replaceHtmlIfChanged(eventLog, sim.events.map((e) => {
+      const sLabel = sideLabel(e.side);
+      const sideClass = e.side === 'BLUE' ? 'blue' : e.side === 'RED' ? 'red' : '';
+      const sideWidth = lang === 'zh' ? '14px' : '12px';
+      return `<div class="${eventSeverity(e.text)}" style="grid-template-columns:34px ${sideWidth} minmax(0, 1fr)">
+        <span class="event-time">${formatTime(e.t)}</span>
+        <b class="event-side ${sideClass}">${sLabel}</b>
+        <span class="event-text">${translateEventText(e.text)}</span>
+      </div>`;
+    }).join(""));
+  }
 }
 
 function setFeedCollapsed(nextCollapsed) {
@@ -649,8 +854,9 @@ function render() {
     if (selectedIds.has(ship.id)) drawSectorResponsibility(ship);
   }
   if (filters.tracks.classList.contains("active")) drawTracks();
-  for (const ship of sim.ships) drawScaledShip(ship);
-  drawMissiles();
+  const label = shipLabelScale();
+  for (const ship of sim.ships) drawScaledShip(ship, label);
+  drawMissiles(label);
   drawRuler();
   drawSelectionBox();
   renderPanels();
@@ -720,7 +926,8 @@ canvas.addEventListener("pointerdown", (event) => {
   if (tool === "blue" || tool === "red") {
     if (!canAddAssets(sim)) return;
     const hull = shipClassSelect?.value || "DDG";
-    placeShip(sim, tool === "blue" ? SIDE.BLUE : SIDE.RED, world.x, world.y, hull);
+    const placed = placeShip(sim, tool === "blue" ? SIDE.BLUE : SIDE.RED, world.x, world.y, hull);
+    if (!placed) return;
     selectedIds = new Set([sim.selectedId]);
     document.querySelectorAll(".tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
     return;
@@ -734,7 +941,14 @@ canvas.addEventListener("pointerdown", (event) => {
   if (ship) {
     setPrimarySelection(ship);
     if (sim.mode === SCENARIO_MODE.SETUP) {
-      drag = { type: "ship", shipId: ship.id, ox: ship.x - world.x, oy: ship.y - world.y };
+      drag = {
+        type: "ship",
+        shipId: ship.id,
+        ox: ship.x - world.x,
+        oy: ship.y - world.y,
+        lastValidX: ship.x,
+        lastValidY: ship.y
+      };
     }
   }
 });
@@ -750,8 +964,16 @@ canvas.addEventListener("pointermove", (event) => {
         ship.x = world.x + drag.ox;
         ship.y = world.y + drag.oy;
         clampShipToBounds(sim, ship);
-        ship.waypoint = null;
-        ship.tracks.clear();
+        if (isShipPositionOnWater(sim, ship)) {
+          drag.lastValidX = ship.x;
+          drag.lastValidY = ship.y;
+          ship.waypoint = null;
+          ship.navigationWaypoint = null;
+          ship.tracks.clear();
+        } else {
+          ship.x = drag.lastValidX;
+          ship.y = drag.lastValidY;
+        }
       }
     } else if (drag.type === "pan") {
       camera.x = drag.cx - (event.clientX - drag.x) / camera.scale;
@@ -824,7 +1046,7 @@ step.addEventListener("click", () => {
   stepSim(sim, 0.25);
 });
 document.querySelector("#reset").addEventListener("click", () => {
-  sim = createScenario();
+  sim = createDefaultScenario(undefined, sim.mapId);
   selectedIds = new Set([sim.selectedId]);
   activeRuler = null;
   rulers = [];
@@ -894,6 +1116,14 @@ document.querySelector("#load-file").addEventListener("change", async (event) =>
     event.target.value = "";
   }
 });
+
+if (mapSelect) {
+  mapSelect.addEventListener("change", () => {
+    const result = setScenarioMap(sim, mapSelect.value);
+    if (!result.ok) mapSelect.value = sim.mapId;
+    selectedIds = new Set([sim.selectedId].filter(Boolean));
+  });
+}
 
 window.addEventListener("keydown", (event) => {
   if (event.target instanceof HTMLInputElement) return;

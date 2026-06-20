@@ -9,14 +9,18 @@ import {
   MAP_WIDTH_M,
   TACTICAL_MAPS
 } from "../src/ui/maps.js";
+import { geographicExtentForProjectedBounds } from "../src/world/map-spec.js";
 
-test("East China Sea world and coastline extent are four times the core map", () => {
-  assert.equal(MAP_WIDTH_M, CORE_MAP_WIDTH_M * 4);
-  assert.equal(MAP_HEIGHT_M, CORE_MAP_HEIGHT_M * 4);
+test("East China Sea world and coastline extent match the expanded map bounds", () => {
+  assert.equal(MAP_WIDTH_M, CORE_MAP_WIDTH_M * 9);
+  assert.equal(MAP_HEIGHT_M, CORE_MAP_HEIGHT_M * 48 / 5);
 
   const extent = TACTICAL_MAPS.eastChinaSea.geographicExtent;
-  assert.ok(Math.abs((extent.east - extent.west) - 54.4) < 1e-9);
-  assert.ok(Math.abs((extent.north - extent.south) - 24) < 1e-9);
+  const expected = geographicExtentForProjectedBounds(MAP_WIDTH_M, MAP_HEIGHT_M);
+  assert.ok(Math.abs(extent.west - expected.west) < 1e-9);
+  assert.ok(Math.abs(extent.east - expected.east) < 1e-9);
+  assert.ok(Math.abs(extent.south - expected.south) < 1e-9);
+  assert.ok(Math.abs(extent.north - expected.north) < 1e-9);
 
   const sim = createScenario(1);
   assert.equal(sim.widthM, MAP_WIDTH_M);
@@ -37,11 +41,45 @@ test("frame rendering preserves interactive panel DOM when content is unchanged"
   assert.doesNotMatch(appSource, /unitTab\.innerHTML\s*=/);
 });
 
-test("tactical-map renders ships, tracks, and missiles without identifier text labels", () => {
+test("tactical-map renders ship and missile labels as fill text, not stroke labels", () => {
   const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 
   assert.match(appSource, /shipDisplayName\(ship, "-"\)/);
   assert.doesNotMatch(appSource, /strokeText\(text, labelX, labelY\)/);
+});
+
+test("ship labels shrink and fade out as the map scale bar advances", () => {
+  const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+
+  assert.match(appSource, /function shipLabelScale\(\)/);
+  assert.match(appSource, /scaleMeters <= 20 \* KM/);
+  assert.match(appSource, /scaleMeters <= 50 \* KM/);
+  assert.match(appSource, /scaleMeters <= 100 \* KM/);
+  assert.match(appSource, /scaleMeters <= 200 \* KM/);
+});
+
+test("launched missiles display zoom-fading text labels beside their icons", () => {
+  const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+
+  assert.match(appSource, /function clusterSameTypeMissileLabels\(items, thresholdPx\)/);
+  assert.match(appSource, /ctx\.font = canvasFont\(labelFontPx\)/);
+  assert.match(appSource, /const labelFontPx = Math\.max\(7, VISUAL_CONFIG\.shipLabelPx \* 0\.4 \* label\.scale\)/);
+  assert.match(appSource, /const groupKey = `\$\{missile\.side\}:\$\{missile\.missileId\}`;/);
+});
+
+test("ship and missile icons keep a small minimum size instead of collapsing to dots", () => {
+  const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+
+  assert.match(appSource, /worldSize\(ship\.lengthM, 4, 25\)/);
+  assert.match(appSource, /Math\.max\(2\.2, VISUAL_CONFIG\.missileMinPx \* \(isAntiAir \? 0\.85 : 1\)\)/);
+});
+
+test("terrain rendering reuses a cached offscreen layer when the camera is unchanged", () => {
+  const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+
+  assert.match(appSource, /const terrainLayer = document\.createElement\("canvas"\);/);
+  assert.match(appSource, /if \(terrainLayerKey !== key\) \{/);
+  assert.match(appSource, /ctx\.drawImage\(terrainLayer, 0, 0, innerWidth, innerHeight\);/);
 });
 
 test("setup mode suppresses ship direction arrows until battle starts", () => {

@@ -6,6 +6,9 @@
 import { SIDE, FLEET_ROLE, NM } from "./constants.js";
 import { clamp, wrapAngle } from "./math.js";
 import { defaultLoadout, vlsCapacity, offensiveMissileCount } from "./ships.js";
+import { currentTrack } from "./sensors.js";
+
+const offensivePriorCache = new Map();
 
 // ---------------------------------------------------------------------------
 // Cooperative Engagement Capability (CEC) — composite fire-control tracks.
@@ -18,58 +21,96 @@ import { defaultLoadout, vlsCapacity, offensiveMissileCount } from "./ships.js";
 // build-up). This is what lets one ship launch on another ship's track
 // (engage-on-remote) and what feeds missile mid-course datalink updates.
 // ---------------------------------------------------------------------------
-export function buildForcePicture(sim) {
-  const picture = new Map();
-  for (const side of [SIDE.BLUE, SIDE.RED]) picture.set(side, new Map());
-  for (const ship of sim.ships) {
-    if (!ship.alive) continue;
-    const fused = picture.get(ship.side);
-    if (!fused) continue;
-    for (const track of ship.tracks.values()) {
-      if (track.side === ship.side) continue;
-      const existing = fused.get(track.id);
-      if (!existing) {
-        fused.set(track.id, {
-          id: track.id,
-          side: track.side,
-          classification: track.classification,
-          x: track.x,
-          y: track.y,
-          vx: track.vx ?? 0,
-          vy: track.vy ?? 0,
-          quality: track.quality,
-          uncertainty: track.uncertainty,
-          weight: Math.max(0.05, track.quality),
-          contributors: 1,
-          bestQuality: track.quality
-        });
-        continue;
+function mergeTrack(fused, track) {
+  const existing = fused.get(track.id);
+  if (!existing) {
+    fused.set(track.id, {
+      id: track.id,
+      side: track.side,
+      classification: track.classification,
+      x: track.x,
+      y: track.y,
+      vx: track.vx ?? 0,
+      vy: track.vy ?? 0,
+      quality: track.quality,
+      uncertainty: track.uncertainty,
+      weight: Math.max(0.05, track.quality),
+      contributors: 1,
+      bestQuality: track.quality
+    });
+    return;
+  }
+  const w = Math.max(0.05, track.quality);
+  const totalW = existing.weight + w;
+  existing.x = (existing.x * existing.weight + track.x * w) / totalW;
+  existing.y = (existing.y * existing.weight + track.y * w) / totalW;
+  existing.weight = totalW;
+  existing.contributors += 1;
+  existing.uncertainty = Math.min(existing.uncertainty, track.uncertainty);
+  if (track.quality > existing.bestQuality) {
+    existing.bestQuality = track.quality;
+    existing.vx = track.vx ?? 0;
+    existing.vy = track.vy ?? 0;
+    existing.classification = track.classification;
+  }
+}
+
+function finalizeFusedTrack(track) {
+  const netGain = 1 + Math.min(0.25, (track.contributors - 1) * 0.12);
+  track.quality = clamp(track.bestQuality * netGain, 0, 0.99);
+}
+
+export function buildForcePicture(sim, { dirtyOnly = false } = {}) {
+  const dirtyIds = sim._dirtyTrackIds;
+  const picture = dirtyOnly && sim.forcePicture && dirtyIds?.size
+    ? sim.forcePicture
+    : new Map([[SIDE.BLUE, new Map()], [SIDE.RED, new Map()]]);
+  if (picture.size === 0) {
+    picture.set(SIDE.BLUE, new Map());
+    picture.set(SIDE.RED, new Map());
+  }
+  if (dirtyOnly && dirtyIds?.size) {
+    for (const fused of picture.values()) {
+      for (const id of dirtyIds) fused.delete(id);
+    }
+  }
+  if (dirtyOnly && dirtyIds?.size && sim._trackHolders) {
+    for (const id of dirtyIds) {
+      for (const ship of sim._trackHolders.get(id) ?? []) {
+        if (!ship.alive) continue;
+        const rawTrack = ship.tracks.get(id);
+        if (!rawTrack) continue;
+        const track = currentTrack(rawTrack, sim.time);
+        if (track.side === ship.side) continue;
+        mergeTrack(picture.get(ship.side), track);
       }
-      // Quality-weighted position fusion.
-      const w = Math.max(0.05, track.quality);
-      const totalW = existing.weight + w;
-      existing.x = (existing.x * existing.weight + track.x * w) / totalW;
-      existing.y = (existing.y * existing.weight + track.y * w) / totalW;
-      existing.weight = totalW;
-      existing.contributors += 1;
-      existing.uncertainty = Math.min(existing.uncertainty, track.uncertainty);
-      if (track.quality > existing.bestQuality) {
-        existing.bestQuality = track.quality;
-        existing.vx = track.vx ?? 0;
-        existing.vy = track.vy ?? 0;
-        existing.classification = track.classification;
+    }
+  } else {
+    for (const ship of sim.ships) {
+      if (!ship.alive) continue;
+      const fused = picture.get(ship.side);
+      if (!fused) continue;
+      for (const rawTrack of ship.tracks.values()) {
+        const track = currentTrack(rawTrack, sim.time);
+        if (track.side === ship.side) continue;
+        mergeTrack(fused, track);
       }
     }
   }
   // Composite quality: a contact held by multiple sensors yields a firmer,
   // fire-control-grade track than any single radar.
   for (const fused of picture.values()) {
-    for (const track of fused.values()) {
-      const netGain = 1 + Math.min(0.25, (track.contributors - 1) * 0.12);
-      track.quality = clamp(track.bestQuality * netGain, 0, 0.99);
+    if (dirtyOnly && dirtyIds?.size) {
+      for (const id of dirtyIds) {
+        const track = fused.get(id);
+        if (track) finalizeFusedTrack(track);
+      }
+    } else {
+      for (const track of fused.values()) finalizeFusedTrack(track);
     }
   }
   sim.forcePicture = picture;
+  dirtyIds?.clear();
   return picture;
 }
 
@@ -96,8 +137,11 @@ function fleetCapability(ship) {
 }
 
 function offensivePriorForHull(hull) {
+  if (offensivePriorCache.has(hull)) return offensivePriorCache.get(hull);
   const loadout = defaultLoadout(hull);
-  return (loadout.MaritimeStrike ?? 0) + (loadout.TomahawkBlockV ?? 0) + (loadout["SM-6"] ?? 0) * 0.35;
+  const prior = (loadout.MaritimeStrike ?? 0) + (loadout.TomahawkBlockV ?? 0) + (loadout["SM-6"] ?? 0) * 0.35;
+  offensivePriorCache.set(hull, prior);
+  return prior;
 }
 
 function trackHullEstimate(track) {
@@ -198,6 +242,25 @@ function observedHostileUnitCount(sim, side) {
   return total;
 }
 
+function observedForceMetrics(sim, side) {
+  const fused = sim.forcePicture?.get(side);
+  const metrics = { offense: 0, vls: 0, missilePressure: 0, targets: 0 };
+  if (!fused) return metrics;
+  for (const track of fused.values()) {
+    if (track.side === side) continue;
+    if (String(track.id).startsWith("M-")) {
+      metrics.missilePressure += 1;
+      continue;
+    }
+    const hull = trackHullEstimate(track) || "DDG";
+    const quality = clamp(track.quality ?? 0.35, 0.05, 0.99);
+    metrics.offense += offensivePriorForHull(hull) * (0.55 + 0.45 * quality);
+    metrics.vls += estimatedVlsCapacity(track);
+    metrics.targets += 1;
+  }
+  return metrics;
+}
+
 function selectCommandMode(prevMode, aggression, advantage, ownOffense, enemyEstimate, missilePressure, observedTargets) {
   const pressurePerTrack = missilePressure / Math.max(1, observedTargets || 1);
   if (prevMode === "saturate") {
@@ -274,10 +337,11 @@ export function computeFleetCommand(sim) {
     });
     const ownOffense = ships.reduce((sum, ship) => sum + offensiveMissileCount(ship, true), 0);
     const ownVls = ships.reduce((sum, ship) => sum + vlsCapacity(ship), 0);
-    const enemyOffenseEstimate = observedOffensiveCapacity(sim, side);
-    const enemyVlsEstimate = observedVlsCapacity(sim, side);
-    const missilePressure = observedMissilePressure(sim, side);
-    const observedTargets = observedHostileUnitCount(sim, side);
+    const observed = observedForceMetrics(sim, side);
+    const enemyOffenseEstimate = observed.offense;
+    const enemyVlsEstimate = observed.vls;
+    const missilePressure = observed.missilePressure;
+    const observedTargets = observed.targets;
     const ownPower = ownOffense + ownVls * 0.14;
     const enemyPower = enemyOffenseEstimate + enemyVlsEstimate * 0.14;
     const advantage = clamp(

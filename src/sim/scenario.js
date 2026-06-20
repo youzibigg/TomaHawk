@@ -14,9 +14,16 @@ import {
   resetShipIds
 } from "./ships.js";
 import { addEvent } from "./events.js";
+import { MAP_HEIGHT_M, MAP_WIDTH_M } from "../world/terrain.js";
+import { isWaterPoint, normalizeMapId, tacticalMap } from "../world/terrain.js";
+import { currentTrack } from "./sensors.js";
+import DEFAULT_SCENARIO_TEMPLATE from "./default-scenario.json" with { type: "json" };
 
-const SIM_WIDTH_M = 2880 * NM;
-const SIM_HEIGHT_M = 1440 * NM;
+const DEFAULT_MAP_ID = "openSea";
+const MAP_RESEAT_STEP_M = 2.5 * NM;
+const MAP_RESEAT_MAX_RADIUS_M = 36 * NM;
+const SIM_WIDTH_M = MAP_WIDTH_M;
+const SIM_HEIGHT_M = MAP_HEIGHT_M;
 
 function scenarioDimension(value, fallback) {
   const numeric = Number(value);
@@ -31,7 +38,112 @@ export function clampShipToBounds(sim, ship) {
   return ship;
 }
 
-export function createScenario(seed = 7) {
+export function shipWaterClearanceM(ship) {
+  const length = Number(ship?.lengthM) || 0;
+  const beam = Number(ship?.beamM) || 0;
+  return Math.max(0.18 * NM, length * 0.2, beam * 0.75);
+}
+
+function waterAnchor(side) {
+  return {
+    x: side === SIDE.BLUE ? -20 * NM : 20 * NM,
+    y: 0
+  };
+}
+
+function formationOffset(index) {
+  const row = Math.floor(index / 2);
+  const side = index % 2 === 0 ? -1 : 1;
+  return {
+    x: row * 3.5 * NM,
+    y: side * (1.75 + row * 0.3) * NM
+  };
+}
+
+function canOccupyWater(sim, point, ship) {
+  const bounded = clampShipToBounds(sim, { ...point });
+  return isWaterPoint(bounded, sim.mapId, shipWaterClearanceM(ship));
+}
+
+export function isShipPositionOnWater(sim, ship) {
+  return canOccupyWater(sim, ship, ship);
+}
+
+function findNearestOpenWater(sim, point, ship) {
+  const bounded = clampShipToBounds(sim, { ...point });
+  if (canOccupyWater(sim, bounded, ship)) return bounded;
+  for (let radius = MAP_RESEAT_STEP_M; radius <= MAP_RESEAT_MAX_RADIUS_M; radius += MAP_RESEAT_STEP_M) {
+    for (let i = 0; i < 16; i++) {
+      const angle = (i / 16) * Math.PI * 2;
+      const candidate = clampShipToBounds(sim, {
+        x: bounded.x + Math.cos(angle) * radius,
+        y: bounded.y + Math.sin(angle) * radius
+      });
+      if (canOccupyWater(sim, candidate, ship)) return candidate;
+    }
+  }
+  return null;
+}
+
+function assignFleetWaterPositions(sim, ships) {
+  const occupied = [];
+  for (const side of [SIDE.BLUE, SIDE.RED]) {
+    const sideShips = ships
+      .filter((ship) => ship.side === side)
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const anchor = waterAnchor(side);
+    sideShips.forEach((ship, index) => {
+      const offset = formationOffset(index);
+      const preferred = {
+        x: anchor.x + (side === SIDE.BLUE ? -offset.x : offset.x),
+        y: anchor.y + offset.y
+      };
+      let position = findNearestOpenWater(sim, preferred, ship);
+      if (!position) position = findNearestOpenWater(sim, anchor, ship);
+      if (!position) {
+        throw new Error(`Unable to find open-water start position for ${ship.id} on ${sim.mapId}.`);
+      }
+      let separationPass = 0;
+      while (occupied.some((other) => Math.hypot(other.x - position.x, other.y - position.y) < Math.max(shipWaterClearanceM(ship), shipWaterClearanceM(other.ship)) * 2) && separationPass < 12) {
+        const nudged = findNearestOpenWater(sim, {
+          x: position.x + (side === SIDE.BLUE ? -1 : 1) * MAP_RESEAT_STEP_M,
+          y: position.y + (separationPass % 2 === 0 ? 1 : -1) * MAP_RESEAT_STEP_M
+        }, ship);
+        if (!nudged) break;
+        position = nudged;
+        separationPass += 1;
+      }
+      ship.x = position.x;
+      ship.y = position.y;
+      ship.waypoint = null;
+      ship.navigationWaypoint = null;
+      ship.tracks?.clear?.();
+      occupied.push({ x: position.x, y: position.y, ship });
+    });
+  }
+  sim.sharedTracksBySide?.clear?.();
+  sim._trackIndexReady = false;
+}
+
+export function ensureShipInOpenWater(sim, ship, { fallbackToFormation = false } = {}) {
+  clampShipToBounds(sim, ship);
+  if (canOccupyWater(sim, ship, ship)) return ship;
+  const recovered = findNearestOpenWater(sim, ship, ship);
+  if (recovered) {
+    ship.x = recovered.x;
+    ship.y = recovered.y;
+    ship.waypoint = null;
+    ship.navigationWaypoint = null;
+    return ship;
+  }
+  if (fallbackToFormation) {
+    assignFleetWaterPositions(sim, [ship]);
+    return ship;
+  }
+  return null;
+}
+
+export function createScenario(seed = 7, mapId = DEFAULT_MAP_ID) {
   resetShipIds(1);
   const sim = {
     time: 0,
@@ -39,62 +151,84 @@ export function createScenario(seed = 7) {
     rng: new Rng(seed),
     widthM: SIM_WIDTH_M,
     heightM: SIM_HEIGHT_M,
+    mapId: normalizeMapId(mapId),
     ships: [],
     missiles: [],
     events: [],
     selectedId: null,
     mode: SCENARIO_MODE.SETUP,
     paused: true,
-    nextFirePlanAt: 0
+    nextFirePlanAt: 0,
+    nextForcePictureAt: 0,
+    sharedTracksBySide: new Map(),
+    _entityIndexesDirty: true
   };
-  sim.ships.push(makeBurke(SIDE.BLUE, -20 * NM, 0));
-  sim.ships.push(makeBurke(SIDE.RED, 20 * NM, 0));
+  sim.ships.push(makeBurke(SIDE.BLUE, waterAnchor(SIDE.BLUE).x, 0));
+  sim.ships.push(makeBurke(SIDE.RED, waterAnchor(SIDE.RED).x, 0));
+  assignFleetWaterPositions(sim, sim.ships);
   sim.selectedId = sim.ships[0].id;
   return sim;
 }
 
+export function createDefaultScenario(seed = 7, mapId = DEFAULT_SCENARIO_TEMPLATE.mapId ?? DEFAULT_MAP_ID) {
+  const restored = restoreScenario(structuredClone(DEFAULT_SCENARIO_TEMPLATE));
+  restored.seed = seed;
+  restored.rng = new Rng(seed);
+  restored.mapId = normalizeMapId(mapId);
+  restored.selectedId = restored.ships[0]?.id ?? null;
+  return restored;
+}
+
 export function serializeScenario(sim) {
   return {
-    version: 1,
+    version: 2,
     seed: sim.seed,
     time: sim.time,
     widthM: sim.widthM,
     heightM: sim.heightM,
+    mapId: normalizeMapId(sim.mapId),
     selectedId: sim.selectedId,
     mode: sim.mode,
     paused: sim.paused,
     ended: sim.ended || null,
     nextFirePlanAt: sim.nextFirePlanAt ?? 0,
+    nextForcePictureAt: sim.nextForcePictureAt ?? 0,
     ships: sim.ships.map((ship) => ({
       ...ship,
-      tracks: [...ship.tracks.values()]
+      tracks: [...ship.tracks.values()].map((track) => ({ ...currentTrack(track, sim.time) }))
     })),
+    sharedTracksBySide: [...(sim.sharedTracksBySide?.entries?.() ?? [])].map(([side, tracks]) => [
+      side,
+      [...tracks.values()].map((track) => ({ ...currentTrack(track, sim.time) }))
+    ]),
     missiles: sim.missiles,
     events: sim.events
   };
 }
 
 export function restoreScenario(data) {
-  if (!data || data.version !== 1 || !Array.isArray(data.ships)) {
+  if (!data || ![1, 2].includes(data.version) || !Array.isArray(data.ships)) {
     throw new Error("Unsupported scenario file");
   }
   const seed = Number.isFinite(Number(data.seed)) ? Number(data.seed) : 7;
   const widthM = scenarioDimension(data.widthM, SIM_WIDTH_M);
   const heightM = scenarioDimension(data.heightM, SIM_HEIGHT_M);
+  const mapId = normalizeMapId(data.mapId ?? DEFAULT_MAP_ID);
   resetShipIds(Math.max(1, ...data.ships.map((s) => {
     const num = Number(String(s.id).replace(/^[A-Z]+-/, "")) || 0;
     return num;
   })) + 1);
-  return {
+  const restored = {
     time: Number(data.time) || 0,
     seed,
     rng: new Rng(seed),
     widthM,
     heightM,
+    mapId,
     ships: data.ships.map((ship) => {
       const hull = ship.hull || "DDG";
       const cls = SHIP_CLASSES[hull] || SHIP_CLASSES.DDG;
-      return clampShipToBounds({ widthM, heightM }, {
+      return {
         ...ship,
         hull,
         className: ship.className || cls.className,
@@ -163,8 +297,9 @@ export function restoreScenario(data) {
         isOTC: ship.isOTC ?? false,
         sectorCenter: Number.isFinite(ship.sectorCenter) ? ship.sectorCenter : (ship.side === SIDE.BLUE ? 0 : Math.PI),
         sectorHalfWidth: Number.isFinite(ship.sectorHalfWidth) ? ship.sectorHalfWidth : Math.PI,
-        station: ship.station || null
-      });
+        station: ship.station || null,
+        navigationWaypoint: ship.navigationWaypoint || null
+      };
     }),
     missiles: Array.isArray(data.missiles) ? data.missiles : [],
     events: Array.isArray(data.events) ? data.events : [],
@@ -172,8 +307,31 @@ export function restoreScenario(data) {
     mode: Object.values(SCENARIO_MODE).includes(data.mode) ? data.mode : SCENARIO_MODE.SETUP,
     paused: data.paused ?? true,
     ended: data.ended || null,
-    nextFirePlanAt: Number(data.nextFirePlanAt) || 0
+    nextFirePlanAt: Number(data.nextFirePlanAt) || 0,
+    nextForcePictureAt: Number(data.nextForcePictureAt) || 0,
+    sharedTracksBySide: new Map((data.sharedTracksBySide || []).map(([side, tracks]) => [
+      side,
+      new Map((tracks || []).map((track) => [track.id, track]))
+    ])),
+    _entityIndexesDirty: true,
+    _trackIndexReady: false
   };
+  // Version-2 saves from before the centralized CEC store may contain one
+  // datalink copy per receiver. Collapse those copies while restoring.
+  for (const ship of restored.ships) {
+    const shared = restored.sharedTracksBySide.get(ship.side) ?? new Map();
+    restored.sharedTracksBySide.set(ship.side, shared);
+    for (const [id, track] of ship.tracks) {
+      if (!String(track.source ?? "").includes("datalink")) continue;
+      const current = shared.get(id);
+      if (!current || (track.quality ?? 0) > (current.quality ?? 0)) shared.set(id, track);
+      ship.tracks.delete(id);
+    }
+  }
+  for (const ship of restored.ships) {
+    ensureShipInOpenWater(restored, ship, { fallbackToFormation: true });
+  }
+  return restored;
 }
 
 export function exportAfterAction(sim) {
@@ -197,7 +355,9 @@ export function exportAfterAction(sim) {
 
 export function placeShip(sim, side, x, y, hull = "DDG") {
   const ship = clampShipToBounds(sim, makeShip(side, x, y, hull));
+  if (!canOccupyWater(sim, ship, ship)) return null;
   sim.ships.push(ship);
+  sim._entityIndexesDirty = true;
   sim.selectedId = ship.id;
   addEvent(sim, `${side} ${ship.hull} placed.`, side);
   return ship;
@@ -215,8 +375,11 @@ export function duplicateShip(sim, shipId) {
   copy.doctrine = { ...original.doctrine };
   copy.defenseDoctrine = { ...original.defenseDoctrine };
   copy.offenseDoctrine = { ...original.offenseDoctrine };
-  clampShipToBounds(sim, copy);
+  if (!ensureShipInOpenWater(sim, copy)) {
+    assignFleetWaterPositions(sim, [copy]);
+  }
   sim.ships.push(copy);
+  sim._entityIndexesDirty = true;
   sim.selectedId = copy.id;
   addEvent(sim, `${copy.side} ${copy.hull} duplicated from ${original.id}.`, copy.side);
   return copy;
@@ -228,6 +391,8 @@ export function deleteShip(sim, shipId) {
   sim.ships = sim.ships.filter((candidate) => candidate.id !== shipId);
   sim.missiles = sim.missiles.filter((missile) => missile.launcherId !== shipId && missile.targetId !== shipId);
   sim.selectedId = sim.ships[0]?.id ?? null;
+  sim._entityIndexesDirty = true;
+  sim._trackIndexReady = false;
   addEvent(sim, `${ship.id} removed from scenario.`, ship.side);
   return true;
 }
@@ -238,6 +403,8 @@ export function clearSide(sim, side) {
   sim.ships = sim.ships.filter((ship) => ship.side !== side);
   sim.missiles = sim.missiles.filter((missile) => !removedIds.has(missile.launcherId) && !removedIds.has(missile.targetId));
   sim.selectedId = sim.ships[0]?.id ?? null;
+  sim._entityIndexesDirty = true;
+  sim._trackIndexReady = false;
   addEvent(sim, `${side} side cleared from scenario.`, side);
   return removedIds.size;
 }
@@ -249,4 +416,16 @@ export function canRunScenario(sim) {
 
 export function canAddAssets(sim) {
   return sim?.mode === SCENARIO_MODE.SETUP;
+}
+
+export function setScenarioMap(sim, mapId) {
+  if (sim?.mode !== SCENARIO_MODE.SETUP) {
+    return { ok: false, reason: "mode_locked", mapId: normalizeMapId(sim?.mapId) };
+  }
+  const nextMapId = normalizeMapId(mapId);
+  if (nextMapId === sim.mapId) return { ok: true, changed: false, mapId: nextMapId };
+  sim.mapId = nextMapId;
+  assignFleetWaterPositions(sim, sim.ships);
+  addEvent(sim, `Scenario map set to ${tacticalMap(nextMapId).id}; ship positions reset to open water.`);
+  return { ok: true, changed: true, mapId: nextMapId };
 }

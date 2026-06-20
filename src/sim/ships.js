@@ -143,6 +143,7 @@ export function makeShip(side, x, y, hull = "DDG") {
     damage: 0, damageResist: cls.damageResist, damageDegrade: cls.damageDegrade,
     subsystems: { radar: 1.0, vls: 1.0, propulsion: 1.0, fireControl: 1.0, ciws: 1.0, cic: 1.0 },
     waypoint: null,
+    navigationWaypoint: null,
     loadout: normalizeLoadout(defaultLoadout(hull)),
     vlsCells: cls.vlsCells, vlsStrikeCells: cls.vlsStrikeCells,
     tracks: new Map(),

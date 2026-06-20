@@ -6,7 +6,8 @@
 // of the same seed produce byte-identical event streams (the determinism
 // invariant the hot-path indexes must never break).
 
-import { createScenario, clearSide, placeShip, stepSim, SIDE, SCENARIO_MODE, NM } from "../src/sim.js";
+import { createScenario, clearSide, placeShip, stepSim, moveShips, SIDE, SCENARIO_MODE, NM } from "../src/sim.js";
+import { projectLonLat } from "../src/world/terrain.js";
 
 const HULLS = ["DDG", "CCG", "FFG", "BBG"];
 
@@ -63,5 +64,26 @@ for (const perSide of [1, 2, 4, 8]) {
     `  (${elapsedMs.toFixed(1)} ms, peak missiles ~${sim.missiles.length})`
   );
 }
+
+// --- terrain navigation ----------------------------------------------------
+// The Open Sea throughput cases intentionally isolate combat scaling. This
+// coastal case guards the terrain-aware movement path that previously caused
+// recurring frame-length stalls while replanning a blocked route.
+const coastal = createScenario(17, "eastChinaSea");
+const coastalShip = coastal.ships[0];
+Object.assign(coastalShip, projectLonLat(122.3, 30.9));
+coastalShip.waypoint = projectLonLat(121.47, 31.23);
+let start = process.hrtime.bigint();
+moveShips(coastal, 0.25);
+const firstRouteMs = Number(process.hrtime.bigint() - start) / 1e6;
+start = process.hrtime.bigint();
+for (let i = 0; i < 20; i++) {
+  coastal.time += 0.25;
+  moveShips(coastal, 0.25);
+}
+const cachedRouteMs = Number(process.hrtime.bigint() - start) / 1e6;
+console.log("\nterrain navigation (East China Sea blocked route):");
+console.log(`  first plan: ${firstRouteMs.toFixed(1)} ms`);
+console.log(`  next 20 ticks: ${cachedRouteMs.toFixed(1)} ms (${(cachedRouteMs / 20).toFixed(2)} ms/tick)`);
 
 process.exit(determinismOk ? 0 : 1);

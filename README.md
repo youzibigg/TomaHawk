@@ -32,10 +32,11 @@ npm run refresh:start  # refresh Natural Earth data, then serve
 npm test       # run the deterministic test suite (node --test)
 ```
 
-The tactical world is four times the original East China Sea view in both
-dimensions. Its rigid camera boundary, simulation bounds, and generated
-Natural Earth crop use the same extent. / 战术世界的宽度和高度均为原东海视图的四倍；
-相机硬边界、模拟边界与生成的 Natural Earth 裁剪范围保持一致。
+The tactical world is nine times the original East China Sea view in width and
+9.6 times in height. Its rigid camera boundary, simulation bounds, and
+generated Natural Earth crop are all derived from the shared map dimensions.
+/ 战术世界的宽度为原东海视图的九倍、高度为 9.6 倍；相机硬边界、模拟边界与生成的
+Natural Earth 裁剪范围都由共享地图尺寸自动派生。
 
 On Windows you can also double-click `quickrun.bat`: it frees port `4173`, starts
 a fresh server, and opens the browser automatically.
@@ -90,6 +91,8 @@ TomaHawk 现已支持通过上方按钮一键部署到 Railway。仓库根目录
 ## What it does (at a glance) / 能力概览
 
 - Deterministic seeded `setup` → `running` → `ended` scenarios, real-scale ship motion.
+- Binary water-vs-land terrain handling: setup rejects land placement, map
+  changes are setup-only, and ships re-route or stop rather than entering land.
 - Imperfect radar tracks fused into a cooperative (CEC-style) force picture.
 - Force-level command posture, offensive raid planning, and layered defensive
   fire allocation (area / point / CIWS), with `free` / `tight` / `hold` ROE.

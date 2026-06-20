@@ -39,8 +39,9 @@ export function interceptPoint(px, py, speed, tx, ty, tvx, tvy) {
       const sq = Math.sqrt(disc);
       const t1 = (-b + sq) / (2 * a);
       const t2 = (-b - sq) / (2 * a);
-      const positives = [t1, t2].filter((v) => v > 1e-6);
-      if (positives.length) t = Math.min(...positives);
+      if (t1 > 1e-6 && t2 > 1e-6) t = Math.min(t1, t2);
+      else if (t1 > 1e-6) t = t1;
+      else if (t2 > 1e-6) t = t2;
     }
   }
   if (!(t > 0) || !Number.isFinite(t)) return { x: tx, y: ty, t: 0 };

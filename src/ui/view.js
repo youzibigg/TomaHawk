@@ -8,6 +8,8 @@
 import { SIDE, defaultLoadout, usedCells, vlsCapacity, battleSummaryCounts } from "../sim.js";
 import { t, hullLabel } from "./lang.js";
 
+const baselineLoadoutCache = new Map();
+
 // --- colors ----------------------------------------------------------------
 
 export function sideColor(side) {
@@ -32,6 +34,57 @@ export function screenToWorld(x, y, camera, viewW, viewH) {
     x: (x - viewW / 2) / camera.scale + camera.x,
     y: (y - viewH / 2) / camera.scale + camera.y
   };
+}
+
+export function clusterProximityLabels(items, thresholdPx) {
+  if (items.length < 2) return items.map((item) => ({ items: [item], x: item.cx, y: item.cy }));
+  const parent = items.map((_, index) => index);
+  const find = (index) => {
+    while (parent[index] !== index) {
+      parent[index] = parent[parent[index]];
+      index = parent[index];
+    }
+    return index;
+  };
+  const unite = (a, b) => {
+    const rootA = find(a);
+    const rootB = find(b);
+    if (rootA !== rootB) parent[Math.max(rootA, rootB)] = Math.min(rootA, rootB);
+  };
+  const cells = new Map();
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
+    const cellX = Math.floor(item.x / thresholdPx);
+    const cellY = Math.floor(item.y / thresholdPx);
+    for (let x = cellX - 1; x <= cellX + 1; x++) {
+      for (let y = cellY - 1; y <= cellY + 1; y++) {
+        for (const otherIndex of cells.get(`${x},${y}`) ?? []) {
+          const other = items[otherIndex];
+          if (Math.abs(item.y - other.y) <= thresholdPx && Math.abs(item.x - other.x) <= thresholdPx) unite(index, otherIndex);
+        }
+      }
+    }
+    const key = `${cellX},${cellY}`;
+    const bucket = cells.get(key) ?? [];
+    bucket.push(index);
+    cells.set(key, bucket);
+  }
+  const grouped = new Map();
+  for (let index = 0; index < items.length; index++) {
+    const root = find(index);
+    const group = grouped.get(root) ?? [];
+    group.push(items[index]);
+    grouped.set(root, group);
+  }
+  return [...grouped.values()].map((clusterItems) => {
+    let x = 0;
+    let y = 0;
+    for (const item of clusterItems) {
+      x += item.cx;
+      y += item.cy;
+    }
+    return { items: clusterItems, x: x / clusterItems.length, y: y / clusterItems.length };
+  });
 }
 
 // --- per-ship derived state ------------------------------------------------
@@ -66,7 +119,13 @@ export function inventoryVlsColor(ship) {
 }
 
 export function inventoryMissileColor(ship, missileId) {
-  const baseline = Math.max(0, Math.round(defaultLoadout(ship?.hull ?? "DDG")?.[missileId] ?? 0));
+  const hull = ship?.hull ?? "DDG";
+  let baselineLoadout = baselineLoadoutCache.get(hull);
+  if (!baselineLoadout) {
+    baselineLoadout = defaultLoadout(hull);
+    baselineLoadoutCache.set(hull, baselineLoadout);
+  }
+  const baseline = Math.max(0, Math.round(baselineLoadout[missileId] ?? 0));
   const count = displayCount(ship, missileId);
   if (count <= 0) return "#4e6972";
   if (baseline <= 0) return "#ffffff";
@@ -108,8 +167,8 @@ export function postureBar(side, posture) {
   `;
 }
 
-export function renderBattleStatus(sim) {
-  const c = battleSummaryCounts(sim);
+export function renderBattleStatus(sim, counts = null) {
+  const c = counts ?? battleSummaryCounts(sim);
   const bluePosture = commandPosture(sim, SIDE.BLUE);
   const redPosture = commandPosture(sim, SIDE.RED);
   return `

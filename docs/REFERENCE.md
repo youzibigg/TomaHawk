@@ -69,7 +69,7 @@ desired.
 - The left setup controls are grouped under `SHIP SPAWNING`; map selection currently offers Open Sea and an East China Sea coastline layer.
 - Ship direction arrows stay hidden during setup and appear when the battle starts; initial blue headings face left and red headings face right.
 - Moving ships use short dashed heading arrows instead of waypoint lines and destination squares.
-- The East China Sea layer uses locally bundled Natural Earth 1:10m land/coastline data in an azimuthal-equidistant projection and fills the viewport without stretching. The tactical map and simulation bounds now share the same much larger rigid world extent, and the camera clamps to that border instead of zooming past it.
+- The East China Sea layer uses locally bundled Natural Earth 1:10m land/coastline data in an azimuthal-equidistant projection and fills the viewport without stretching. The tactical map and simulation bounds now share the same rigid world extent, with the width expanded to nine times the core map and the height expanded to 9.6 times the core map for extra play space, and the camera clamps to that border instead of zooming past it.
 - Map coordinates, the 20 km grid, dynamic scale bar, rulers, and visible weapon ranges use kilometers. Internal simulation distances remain meters.
 - Weapon and missile text is hidden at wide zoom while circles and symbols remain; ship names stay fully opaque.
 
@@ -308,7 +308,7 @@ TomaHawk 是仓库名，应用内部与运行时名称为 **战斧**。它是一
 - 左侧五项准备控件统一归入 `船只生成` 分组；地图可在开放海域与东海海岸线图层之间选择。
 - 舰艇方向箭头在部署阶段隐藏，开战时才出现；蓝方初始朝左，红方初始朝右。
 - 舰艇运动指示改为短虚线航向箭头，不再绘制通往目标点的虚线和目标方框。
-- 东海图层使用本地打包的 Natural Earth 1:10m 陆地与海岸线数据，并采用等距方位投影；地图铺满视口，不拉伸。战术地图与仿真边界现在共享同一个更大的固定世界范围，相机不会越过该边界。
+- 东海图层使用本地打包的 Natural Earth 1:10m 陆地与海岸线数据，并采用等距方位投影；地图铺满视口，不拉伸。战术地图与仿真边界现在共享同一个固定世界范围，其中宽度扩展到核心地图的九倍、高度扩展到核心地图的 9.6 倍，以增加可玩空间，相机不会越过该边界。
 - 地图坐标、20 公里网格、动态比例尺、标尺和可见武器射程统一使用公里；仿真内部仍以米为单位。
 - 广域缩放时隐藏武器与导弹文字但保留射程圈和符号；舰名始终保持完全不透明。
 - `Delete` / `Backspace` 可删除 `setup` 模式下的选中单位。

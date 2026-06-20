@@ -48,7 +48,7 @@ const strings = {
 
   // Status messages
   "status.ready":    { en: "SETUP READY",           zh: "部署就绪" },
-  "status.setup":    { en: "Place one blue and one red ship, then press play.", zh: "放置蓝红各一舰，按空格开始。" },
+  "status.setup":    { en: "Default 4v4 scenario loaded; press play when ready.", zh: "默认 4v4 想定已载入，准备好后按空格开始。" },
   "status.paused":   { en: "PAUSED",               zh: "已暂停" },
   "status.ended":    { en: "ENDED",                zh: "已结束" },
   "status.running":  { en: "RUNNING",              zh: "运行中" },

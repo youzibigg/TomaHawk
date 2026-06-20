@@ -1,6 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  EAST_CHINA_SEA_CENTER,
+  MAP_HEIGHT_M,
+  MAP_WIDTH_M,
+  geographicExtentForProjectedBounds
+} from "../src/world/map-spec.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUTPUT = path.join(ROOT, "src", "ui", "data", "east-china-sea-data.js");
@@ -9,18 +15,23 @@ const SOURCES = {
   land: `https://raw.githubusercontent.com/nvkelso/natural-earth-vector/${NATURAL_EARTH_REVISION}/geojson/ne_10m_land.geojson`,
   coast: `https://raw.githubusercontent.com/nvkelso/natural-earth-vector/${NATURAL_EARTH_REVISION}/geojson/ne_10m_coastline.geojson`
 };
-// Four times the original 118.2-131.8 E by 25.2-31.2 N tactical view,
-// expanded about the same 125 E, 28.2 N projection center.
-const CROP = { minLon: 97.8, maxLon: 152.2, minLat: 16.2, maxLat: 40.2 };
-const CENTER = { lon: 125, lat: 28.2 };
+// Cropped from the shared projected map bounds so the source geometry expands
+// automatically when the core map dimensions change.
+const cropExtent = geographicExtentForProjectedBounds(MAP_WIDTH_M, MAP_HEIGHT_M);
+const CROP = {
+  minLon: cropExtent.west,
+  maxLon: cropExtent.east,
+  minLat: cropExtent.south,
+  maxLat: cropExtent.north
+};
 const EARTH_RADIUS_M = 6371008.8;
 
 function project([lon, lat]) {
   const toRad = Math.PI / 180;
   const lambda = lon * toRad;
   const phi = lat * toRad;
-  const lambda0 = CENTER.lon * toRad;
-  const phi0 = CENTER.lat * toRad;
+  const lambda0 = EAST_CHINA_SEA_CENTER.lon * toRad;
+  const phi0 = EAST_CHINA_SEA_CENTER.lat * toRad;
   const delta = lambda - lambda0;
   const cosC = Math.max(-1, Math.min(1,
     Math.sin(phi0) * Math.sin(phi) + Math.cos(phi0) * Math.cos(phi) * Math.cos(delta)

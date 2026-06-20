@@ -6,8 +6,9 @@ The implemented stack uses static HTML, CSS, and JavaScript with a deterministic
 
 ## Runtime Shape
 
-- The simulation core owns deterministic state, doctrine, movement, sensors, tracks, missile flight, defenses, and damage. It is split into focused modules under `src/sim/` (constants, math, events, missiles, ships, sensors, command, movement, combat, scenario, step) behind the `src/sim.js` re-export barrel. See `src/README.md` for the module map.
+- The simulation core owns deterministic state, doctrine, movement, sensors, tracks, missile flight, defenses, damage, and terrain-aware ship navigation. It is split into focused modules under `src/sim/` (constants, math, events, missiles, ships, sensors, command, movement, combat, scenario, step) behind the `src/sim.js` re-export barrel. See `src/README.md` for the module map.
 - `src/app.js` owns canvas rendering, map interactions, UI panels, loadout editing, and sim controls.
+- `src/world/terrain.js` is the shared low-level terrain module. It owns the tactical-map geometry, projection, and binary water/land queries that both the UI and the simulation consume.
 - Scenario setup, save/load, copyable logs, and after-action export are handled through helpers in `src/sim/scenario.js` and `src/sim/events.js`.
 - `server.mjs` serves the app locally at `http://127.0.0.1:4173`, binds to Railway's injected host/port in deployment, and exposes `/health` for platform checks.
 - `tests/sim.test.mjs` verifies deterministic and rules-level behavior with Node's built-in test runner.
@@ -18,13 +19,13 @@ The implemented stack uses static HTML, CSS, and JavaScript with a deterministic
 The simulation is intentionally separated into truth, perception, decision, and presentation concerns.
 
 - Truth: actual ship and missile positions, health, impact resolution.
-- Perception: radar scans create track files with quality, age, and uncertainty.
+- Perception: radar scans create hostile track files with quality, age, and uncertainty. Friendly and self state is known directly and is not duplicated into radar/CEC track maps.
 - Decision: ship movement is per-unit (with formation station-keeping for non-guide units and retreat behavior for strike-empty units), while air defence is run as a force — a dynamically designated command hierarchy (OTC / AAWC), AAW sector responsibility, and a force-level fire planner allocate interceptors and salvos using a fused Cooperative Engagement (CEC) track picture, inbound threats, active and queued missiles, magazine state, and rules of engagement. Defensive orders are prioritized in the launch scheduler and use their own reaction/cadence gates so strike salvos cannot block urgent self-defence. Inbound defense uses the freshest local or shared missile track available to the force rather than waiting on a slower composite refresh.
 - Presentation: the UI displays selected-unit tracks and uncertainty instead of giving every unit omniscient targeting data.
 
 Scenarios move through three modes:
 
-- `setup`: ships can be added, dragged, selected by right-click or box select, and deleted with keyboard commands.
+- `setup`: ships can be added, dragged, selected by right-click or box select, and deleted with keyboard commands. Placement is rejected on land, dragging holds the last valid water position, and map changes are only allowed here.
 - `running`: the deterministic simulation advances.
 - `ended`: one side has no surviving ship and the battle is frozen.
 
@@ -54,7 +55,7 @@ The lower-left footer shows a one-line side summary for ship counts, hitpoints, 
 - The top command deck separates brand, scenario tools, map layers, and inventory. The bottom deck separates simulation transport, tactical readout, and save/export actions.
 - The tactical feed is a distinct lower-left console with its copy action and retract toggle attached to the feed header.
 
-Terrain definitions live in `src/ui/maps.js`; generated East China Sea geometry lives in `src/ui/data/`. WGS84 Natural Earth land and coastline data is projected with a regional azimuthal-equidistant projection and rendered across the full viewport at meter-accurate scale without stretching or an artificial outer border. `docs/MAP_DATA.md` records provenance and regeneration. The module also exposes `isLandPoint()` as the future integration boundary for placement, path planning, and collision checks. The deterministic simulation movement code does not consume terrain yet, so land avoidance is deliberately not claimed as current behavior.
+Shared map dimensions and the East China Sea crop helper live in `src/world/map-spec.js`; terrain definitions and binary water/land queries live in `src/world/terrain.js`; generated East China Sea geometry lives in `src/ui/data/`, and `src/ui/maps.js` now re-exports the presentation-facing map helpers. WGS84 Natural Earth land and coastline data is projected with a regional azimuthal-equidistant projection and rendered across the full viewport at meter-accurate scale without stretching or an artificial outer border. `docs/MAP_DATA.md` records provenance and regeneration. The simulation consumes the same binary water/land queries for setup validation, map resets, path checks, coastal detours, and final swept-segment collision guards. Terrain queries use a conservative 0.5 NM water mask plus ring/edge spatial grids as broad phases, then authoritative polygon and continuous segment intersection checks near land.
 
 ## DCS Map Reference
 
@@ -86,8 +87,13 @@ This is not a clone of DCS UI assets or icons.
 - `applySubsystemDamage(sim, ship)` (`src/sim/combat.js`) — random subsystem degradation on hit
 
 ### Performance
-- Pre-computed indexes in `stepSim`: `_missilesByTarget`, `_shipsBySide`, `_aliveShips`, `_aliveMissiles`, `_missilesBySide`
-- Hot-path functions use cached lookups instead of repeated O(n) filters
+- `stepSim` retains `_missileById`, `_shipById`, `_missilesByTarget`, `_shipsBySide`, `_aliveShips`, and `_aliveMissiles` until an entity is launched or destroyed; unchanged ticks do not rebuild them.
+- Fire planning builds one-cycle nested-map engagement/queue indexes and precomputes interceptor solutions and best missile tracks. Defensive planning rejects missiles that are not aimed at a living friendly ship before scoring candidates.
+- Ship track maps contain local sensor reports only. CEC stores one delayed, degraded shared report per side/contact in `sharedTracksBySide`; consumers compose local and shared views without copying the same report into every receiver.
+- Track position, quality, and uncertainty are projected lazily by `currentTrack()`. An expiry heap and reverse contact-holder index replace full-map ageing and death-pruning scans.
+- The force picture refreshes fully every 0.5 seconds and incrementally updates dirty contacts directly through the reverse contact-holder index after sensor/CEC changes. Sensor scans use an adaptive spatial grid when contacts are spread over a large area.
+- The renderer caches stable panel/detail markup and weapon-range metadata, uses indexed missile-target lookup, spatial label clustering, and viewport culling. These optimizations do not change simulation tick order or UI controls.
+- `npm run bench` measures simulation throughput; `npm run bench:frontend` measures the isolated high-density rendering helpers.
 
 ### UI: Ship Detail Overlay
 - `shipDetailOverlay` — dynamically created fixed-position DOM element

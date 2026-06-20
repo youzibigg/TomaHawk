@@ -17,3 +17,5 @@ desktop.ini
 .vscode/
 *.swp
 agents.empty
+reasonix.toml
+AGENTS.md

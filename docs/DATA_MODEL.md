@@ -30,7 +30,8 @@ Important fields:
 - `fleetRole` (`OTC` / `AAWC` / `UNIT`), `isOTC`
 - `sectorCenter`, `sectorHalfWidth` (assigned AAW sector responsibility, radians)
 - `station` (assigned formation station relative to the guide, or `null`)
-- `waypoint`
+- `waypoint` (the ship's strategic intent waypoint)
+- `navigationWaypoint` (a temporary terrain-avoidance detour waypoint, or `null`)
 - `damage`, `alive` (damage accumulates in whole hits; the UI renders whole-number HP)
 
 All world-space values use meters, seconds, and radians internally.
@@ -149,12 +150,14 @@ Important fields:
 - `mode`: `setup`, `running`, or `ended`
 - `paused`
 - `ended`
+- `mapId` (`openSea` or `eastChinaSea`)
 - `ships`
 - `missiles`
 - `events`
 - `nextFirePlanAt`
+- `nextForcePictureAt`
 
-New scenarios begin in `setup`. The default Blue and Red destroyers start 40 NM apart, 20 NM on each side of the origin, so engagements begin quickly while ship movement remains at real 1x speed. Setup mode allows adding ships, dragging starting positions, right-click selection, box selection, and keyboard deletion. Placement, dragging, duplication, and restored saves clamp ship coordinates to the scenario bounds immediately, so starting the simulation cannot cause a delayed boundary snap. The simulation can run only when at least one alive Blue and one alive Red ship exist.
+New scenarios begin in `setup`. The app's default scenario now loads the supplied 4v4 East China Sea template, while the lower-level `createScenario` helper remains available for compact setup tests and custom starts. The simulation-core default map is `openSea`; the app selects the UI's current tactical map when creating or resetting a scenario. Setup mode allows adding ships, dragging starting positions, right-click selection, box selection, and keyboard deletion. Placement rejects land, dragging keeps the last valid water position, duplication/restores normalize into open water, and setup-only map changes reseat the existing forces onto deterministic water starts for the selected terrain. The simulation can run only when at least one alive Blue and one alive Red ship exist.
 
 ## Visual Config
 
@@ -186,6 +189,15 @@ Important fields:
 
 Tracks are the decision input for hostile contacts. They are deliberately noisy and stale over time. Tracks that reference live missile ids (`M-*`) are pruned as soon as the missile is no longer alive, so an intercepted missile does not keep rendering as an extrapolated radar contact.
 
+Each ship's `tracks` map contains only reports produced by that ship's own
+sensor. Delayed CEC reports are stored once per side and contact in
+`sim.sharedTracksBySide`. `tracksForShip()` overlays the receiver's local
+reports on that shared map, while `trackForShip()` resolves one contact. Track
+objects retain their last materialized state and timestamp; `currentTrack()`
+projects position, quality, and uncertainty to `sim.time` without rewriting
+every track on every tick. Serialization materializes these derived values so
+save/restore remains plain JSON and deterministic.
+
 ## Doctrine
 
 Important fields:
@@ -199,7 +211,8 @@ Doctrine is per ship. Both Red and Blue use the same decision engine.
 
 ## Cooperative Force Picture (CEC)
 
-Each tick, `buildForcePicture(sim)` fuses every alive ship's track files into one
+At most every 0.5 seconds, and immediately after new radar or CEC data,
+`buildForcePicture(sim)` fuses every alive ship's local hostile track files into one
 composite picture per side (`sim.forcePicture`). Reports of the same contact are
 combined: position is a quality-weighted average across all reporting sensors,
 velocity comes from the firmest report, and the fused quality is boosted above
@@ -207,6 +220,10 @@ any single radar (sensor-netting / track build-up). This composite, fire-control
 grade track is what allows **engage-on-remote** — a ship can launch on a picture
 built entirely by another unit's radar — and it feeds missile mid-course
 datalink updates. This is the Cooperative Engagement Capability abstraction.
+The 1.8-second delayed/degraded CEC layer is represented separately by
+`sim.sharedTracksBySide`; it is shared by reference rather than duplicated into
+each receiving ship's local map. Dirty contact ids permit immediate incremental
+fusion between the scheduled full rebuilds.
 
 ## Fleet Command
 
@@ -235,6 +252,9 @@ targets.
 Defensive planning is related but separate: it chooses the best currently
 available local or shared track for each hostile missile, so an inbound threat
 can be serviced before the slower fused force picture fully catches up.
+
+`nextForcePictureAt` is serialized with scenario state so the bounded refresh
+cadence survives save/restore without an artificial immediate rebuild.
 
 ## Rules of Engagement (ROE)
 
