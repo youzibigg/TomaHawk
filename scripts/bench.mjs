@@ -8,6 +8,7 @@
 
 import { createScenario, clearSide, placeShip, stepSim, moveShips, SIDE, SCENARIO_MODE, NM } from "../src/sim.js";
 import { projectLonLat } from "../src/world/terrain.js";
+import { complexityScore } from "./perf-harness.mjs";
 
 const HULLS = ["DDG", "CCG", "FFG", "BBG"];
 
@@ -85,5 +86,18 @@ const cachedRouteMs = Number(process.hrtime.bigint() - start) / 1e6;
 console.log("\nterrain navigation (East China Sea blocked route):");
 console.log(`  first plan: ${firstRouteMs.toFixed(1)} ms`);
 console.log(`  next 20 ticks: ${cachedRouteMs.toFixed(1)} ms (${(cachedRouteMs / 20).toFixed(2)} ms/tick)`);
+
+// --- complexity score -------------------------------------------------------
+// Machine-independent regression number: how per-tick cost scales with force
+// size (1.0 = linear, sizeRatio = quadratic). The same score is asserted by
+// tests/performance-regressions.test.mjs so a complexity regression fails CI.
+const complexity = complexityScore();
+console.log("\ncomplexity score (sustained workload, scaling of ms/tick with force size):");
+console.log(`  ${complexity.smallShips} ships: ${complexity.small.toFixed(4)} ms/tick`);
+console.log(`  ${complexity.largeShips} ships: ${complexity.large.toFixed(4)} ms/tick`);
+console.log(
+  `  score: ${complexity.score.toFixed(2)} ` +
+  `(1.0 = linear, ${complexity.quadraticScore.toFixed(1)} = quadratic; lower is better)`
+);
 
 process.exit(determinismOk ? 0 : 1);

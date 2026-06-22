@@ -583,7 +583,7 @@ test("right panel renderer is fleet inventory focused", () => {
   assert.match(app, /setFeedCollapsed/);
   assert.match(app, /toggle-feed/);
   assert.match(app, /document\.documentElement\.lang = getLang\(\) === 'zh' \? 'zh-CN' : 'en'/);
-  assert.match(app, /entry\.category === "anti_air"/);
+  assert.match(app, /ring\.category === "anti_air"/);
   assert.doesNotMatch(ui, /<span>Class<\/span>|<span>Scenario<\/span>|<span>Heading<\/span>/);
   assert.doesNotMatch(ui, /LAST LAUNCH|LAST EFFECT/);
 });

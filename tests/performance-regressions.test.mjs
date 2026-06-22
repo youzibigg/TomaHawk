@@ -18,6 +18,7 @@ import {
   firstLandCollisionFraction,
   projectLonLat
 } from "../src/world/terrain.js";
+import { complexityScore } from "../scripts/perf-harness.mjs";
 
 test("radar track files contain hostile contacts, not friendly or self tracks", () => {
   const sim = createScenario(91);
@@ -139,6 +140,31 @@ test("track aging is lazy and materializes the same linear state on access", () 
   assert.equal(current.y, 192);
   assert.ok(Math.abs(current.quality - 0.788) < 1e-9);
   assert.equal(current.uncertainty, 680);
+});
+
+// Time-complexity regression guard. Rather than asserting an absolute
+// milliseconds-per-tick budget (which varies by machine and makes CI flaky),
+// this measures how the per-tick cost *scales* with force size on the current
+// machine. Healthy near-linear scaling sits around 1.0; a quadratic regression
+// (an O(n) hot loop turned O(n^2)) pushes the score toward the 5x size ratio.
+// The 2.5 ceiling tolerates measurement noise and log-factor growth while
+// flagging any genuine super-linear blow-up. Lower the ceiling to tighten the
+// guard; see scripts/perf-harness.mjs for the methodology.
+test("simulation tick cost scales near-linearly with force size", () => {
+  const { score, small, large, smallShips, largeShips, quadraticScore } = complexityScore();
+  console.log(`    [perf] ${smallShips} ships: ${small.toFixed(4)} ms/tick`);
+  console.log(`    [perf] ${largeShips} ships: ${large.toFixed(4)} ms/tick`);
+  console.log(
+    `    [perf] complexity score: ${score.toFixed(2)} ` +
+    `(1.0 = linear, ${quadraticScore.toFixed(1)} = quadratic; ceiling 2.5)`
+  );
+  assert.ok(
+    score < 2.5,
+    `tick-cost scaling regressed: complexity score ${score.toFixed(2)} >= 2.5 ` +
+    `(${smallShips} ships ${small.toFixed(4)} ms/tick -> ${largeShips} ships ${large.toFixed(4)} ms/tick). ` +
+    `A score near ${quadraticScore.toFixed(1)} means tick cost grew with the square of the force size — ` +
+    `look for an O(n^2) loop over ships or missiles introduced by the change.`
+  );
 });
 
 test("entity indexes persist across ticks without membership changes", () => {

@@ -98,8 +98,8 @@ test("multi-selection radar rendering iterates every selected ship", () => {
 test("weapon range labels omit the numeric distance suffix", () => {
   const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 
-  assert.doesNotMatch(appSource, /formatDistanceKm\(entry\.rangeM\)/);
-  assert.match(appSource, /ctx\.fillText\(entry\.shortLabel, labelX, labelY\)/);
+  assert.doesNotMatch(appSource, /formatDistanceKm\((?:entry|ring)\.rangeM\)/);
+  assert.match(appSource, /ctx\.fillText\(ring\.shortLabel, labelX, labelY\)/);
 });
 
 test("spawn section keeps only the tight button-group box", () => {

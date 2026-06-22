@@ -310,39 +310,112 @@ function cachedWeaponRangeEntries(ship) {
   return entries;
 }
 
-function drawWeaponRangeRings(ship) {
-  if (!filters.ranges.classList.contains("active") || !ship.alive) return;
-  if (filters.rangesMode.value === "off") return;
-  const p = worldToScreen(ship);
-  const selected = ship.id === sim.selectedId;
-  if (filters.rangesMode.value === "selected" && !selected) return;
-  const entries = cachedWeaponRangeEntries(ship);
+// Collect every weapon range ring that should be drawn this frame, in screen
+// space. Honors the range-ring filter/mode exactly as before.
+function collectWeaponRangeRings() {
+  const rings = [];
+  if (!filters.ranges.classList.contains("active")) return rings;
+  const mode = filters.rangesMode.value;
+  if (mode === "off") return rings;
+  for (const ship of sim.ships) {
+    if (!ship.alive) continue;
+    const selected = ship.id === sim.selectedId;
+    if (mode === "selected" && !selected) continue;
+    const p = worldToScreen(ship);
+    for (const entry of cachedWeaponRangeEntries(ship)) {
+      const radius = entry.rangeM * camera.scale;
+      if (radius < 1.5) continue;
+      rings.push({
+        side: ship.side,
+        id: entry.id,
+        category: entry.category,
+        ringStyle: entry.ringStyle,
+        shortLabel: entry.shortLabel,
+        x: p.x,
+        y: p.y,
+        radius,
+        selected
+      });
+    }
+  }
+  return rings;
+}
+
+// Clip the canvas to the region OUTSIDE a circle, by filling a huge rectangle
+// with the circle punched out (even-odd winding) and clipping to it. Applied
+// once per overlapping neighbour, the successive (intersecting) clips leave
+// only the part of a ring that lies outside every same-type neighbour.
+function clipOutsideCircle(circle) {
+  ctx.beginPath();
+  ctx.rect(-1e7, -1e7, 2e7, 2e7);
+  ctx.moveTo(circle.x + circle.radius, circle.y);
+  ctx.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2);
+  ctx.clip("evenodd");
+}
+
+function drawWeaponRangeRings() {
+  const rings = collectWeaponRangeRings();
+  if (!rings.length) return;
+  // Group rings by faction + weapon type. Only members of the same group may
+  // merge — different weapon (different radius/style) or different faction
+  // (different colour) never do. Within a group, a ring is clipped against the
+  // same-type neighbours it actually overlaps so the crossing internal arcs
+  // disappear, leaving a single union outline; non-overlapping rings are left
+  // whole and look exactly as before. Per-ring style/colour/dash/labels are
+  // unchanged.
+  const groups = new Map();
+  for (const ring of rings) {
+    const key = `${ring.side}|${ring.id}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = [];
+      groups.set(key, group);
+    }
+    group.push(ring);
+  }
   ctx.save();
-  for (const entry of entries) {
-    const radius = entry.rangeM * camera.scale;
-    if (radius < 1.5) continue;
-    ctx.setLineDash(ringDash(entry.ringStyle));
-    const isAirDefense = entry.category !== "anti_ship";
-    const alpha = selected ? 0.82 : 0.58;
-    ctx.strokeStyle = entry.category === "anti_ship"
-      ? `rgba(247, 231, 161, ${selected ? 0.34 : 0.24})`
-      : `${sideColor(ship.side)}${Math.round((isAirDefense ? alpha * 1.12 : alpha) * 255).toString(16).padStart(2, "0")}`;
-    ctx.lineWidth = selected ? 0.72 : 0.56;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-    ctx.stroke();
+  for (const ring of rings) {
+    const group = groups.get(`${ring.side}|${ring.id}`);
+    const overlappers = group.length > 1
+      ? group.filter((other) => {
+        if (other === ring) return false;
+        const dx = ring.x - other.x;
+        const dy = ring.y - other.y;
+        const reach = ring.radius + other.radius;
+        return dx * dx + dy * dy < reach * reach;
+      })
+      : [];
+    ctx.setLineDash(ringDash(ring.ringStyle));
+    const isAirDefense = ring.category !== "anti_ship";
+    const alpha = ring.selected ? 0.82 : 0.58;
+    ctx.strokeStyle = ring.category === "anti_ship"
+      ? `rgba(247, 231, 161, ${ring.selected ? 0.34 : 0.24})`
+      : `${sideColor(ring.side)}${Math.round((isAirDefense ? alpha * 1.12 : alpha) * 255).toString(16).padStart(2, "0")}`;
+    ctx.lineWidth = ring.selected ? 0.72 : 0.56;
+    if (overlappers.length) {
+      ctx.save();
+      for (const other of overlappers) clipOutsideCircle(other);
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, ring.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, ring.radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     const showRingLabel = shouldShowWeaponLabels(camera.scale)
-      && radius > 10
-      && (selected || entry.category === "anti_air");
+      && ring.radius > 10
+      && (ring.selected || ring.category === "anti_air");
     if (showRingLabel) {
       ctx.setLineDash([]);
-      ctx.globalAlpha = selected ? labelAlpha(true) * 0.86 : 0.74;
-      ctx.fillStyle = entry.category === "anti_ship" ? "#f7e7a1" : sideColor(ship.side);
+      ctx.globalAlpha = ring.selected ? labelAlpha(true) * 0.86 : 0.74;
+      ctx.fillStyle = ring.category === "anti_ship" ? "#f7e7a1" : sideColor(ring.side);
       ctx.font = canvasFont(VISUAL_CONFIG.rangeLabelPx);
-      const labelX = Math.max(54, Math.min(innerWidth - 48, p.x + radius + 3));
-      const antiAirOffset = entry.id === "ESSM" ? 8 : entry.id === "SM-2MR" ? -2 : 0;
-      const labelY = Math.max(78, Math.min(innerHeight - 48, p.y - 3 + antiAirOffset));
-      ctx.fillText(entry.shortLabel, labelX, labelY);
+      const labelX = Math.max(54, Math.min(innerWidth - 48, ring.x + ring.radius + 3));
+      const antiAirOffset = ring.id === "ESSM" ? 8 : ring.id === "SM-2MR" ? -2 : 0;
+      const labelY = Math.max(78, Math.min(innerHeight - 48, ring.y - 3 + antiAirOffset));
+      ctx.fillText(ring.shortLabel, labelX, labelY);
       ctx.globalAlpha = 1;
     }
   }
@@ -842,7 +915,7 @@ function render() {
   drawSceneBase();
   drawGrid();
   drawTerrain();
-  for (const ship of sim.ships) drawWeaponRangeRings(ship);
+  drawWeaponRangeRings();
   drawRadarRings();
   for (const ship of sim.ships) {
     if (selectedIds.has(ship.id)) drawSectorResponsibility(ship);
