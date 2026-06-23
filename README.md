@@ -1,6 +1,6 @@
 # TomaHawk / 战斧 Naval Sandbox
 
-**Current release:** `v0.1` (`package.json` version `0.1.0`)
+**Current release:** `v0.2` (`package.json` version `0.2.0`)
 
 TomaHawk (in-app name **战斧**) is a deterministic 2D browser simulation of modern
 surface warfare: task-group missile combat, imperfect radar tracks, coordinated
@@ -76,28 +76,35 @@ TomaHawk 现已支持通过上方按钮一键部署到 Railway。仓库根目录
 │       ├── missiles.js   ships.js     sensors.js
 │       ├── command.js    movement.js  combat.js
 │       └── scenario.js   step.js
-├── tests/
-│   └── sim.test.mjs
+├── scripts/                  # bench.mjs, bench-frontend.mjs, perf-harness.mjs, map:data
+├── tests/                    # node --test suite (sim, ui, ground-units, perf, maps, …)
 └── docs/
     ├── REFERENCE.md            # full bilingual manual / 完整中英手册
     ├── ARCHITECTURE.md         # module boundaries, rendering/sim split
     ├── DATA_MODEL.md           # object shapes and field meanings
     ├── SIMULATION_ASSUMPTIONS.md
+    ├── MAP_DATA.md             # Natural Earth provenance + regeneration
     ├── SOURCES.md              # public-source references and data policy
-    ├── ROADMAP.md              # future ideas (not current behavior)
+    ├── ROADMAP.md              # current status / future ideas
     └── NOTES.md                # historical dev notes
 ```
 
 ## What it does (at a glance) / 能力概览
 
 - Deterministic seeded `setup` → `running` → `ended` scenarios, real-scale ship motion.
-- Binary water-vs-land terrain handling: setup rejects land placement, map
-  changes are setup-only, and ships re-route or stop rather than entering land.
+- A selectable geographic **East China Sea** coastline layer (Natural Earth 1:10m)
+  alongside the border-less **Open Sea**, with kilometre coordinates and scale bar.
+- Binary water-vs-land terrain handling: sea units must be placed on water, ground
+  units on land, map changes are setup-only, and ships re-route along the coast or
+  stop rather than crossing land.
 - Imperfect radar tracks fused into a cooperative (CEC-style) force picture.
 - Force-level command posture, offensive raid planning, and layered defensive
   fire allocation (area / point / CIWS), with `free` / `tight` / `hold` ROE.
-- Four hulls (`DDG`, `CCG`, `BBG`, `FFG`) and five missiles
+- Four naval hulls (`DDG`, `CCG`, `BBG`, `FFG`) plus three fixed land emplacements
+  (`SAM`, `CDB`, `EWR`), and five missiles
   (`SM-2MR`, `ESSM`, `MaritimeStrike`, `TomahawkBlockV`, `SM-6`).
+- Overlapping same-type, same-faction weapon-range rings merge into a single
+  coverage outline; full English/中文 UI with a one-click language toggle.
 - Save/load, after-action export, and copyable tactical logs.
 
 For the full capability list, data-model tables, simulation concepts, and the
@@ -112,9 +119,10 @@ complete operator/controls guide (English + 中文), see
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — runtime structure, module boundaries, rendering layers.
 - [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) — object shapes, unit conventions, ship/missile fields.
 - [`docs/SIMULATION_ASSUMPTIONS.md`](docs/SIMULATION_ASSUMPTIONS.md) — modeling assumptions and abstraction policy.
+- [`docs/MAP_DATA.md`](docs/MAP_DATA.md) — Natural Earth provenance, projection, and regeneration.
 - [`docs/SOURCES.md`](docs/SOURCES.md) — public-source references and data policy.
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — forward-looking ideas; not current behavior.
-- [`CHANGELOG.md`](CHANGELOG.md) — release history beginning with `v0.1`.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — current capability status and forward-looking ideas.
+- [`CHANGELOG.md`](CHANGELOG.md) — release history (`v0.1` → `v0.2`).
 - [`AGENTS.md`](AGENTS.md) — navigation guide for AI coding agents.
 
 ## License / 许可

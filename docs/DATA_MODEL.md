@@ -7,6 +7,7 @@ The current implementation keeps data as plain JavaScript objects defined across
 Important fields:
 
 - `id`, `name`, `side`, `className`
+- `domain` (`"sea"` or `"ground"`) and `isFixed` (true for stationary land emplacements)
 - `x`, `y`, `heading`, `speed`, `desiredSpeed`
 - `cruiseSpeed`, `maxSpeed`, `accel`, `decel`, `turnRate`
 - `radarRangeM`, `radarInterval`, `radarActive`
@@ -157,7 +158,7 @@ Important fields:
 - `nextFirePlanAt`
 - `nextForcePictureAt`
 
-New scenarios begin in `setup`. The app's default scenario now loads the supplied 4v4 East China Sea template, while the lower-level `createScenario` helper remains available for compact setup tests and custom starts. The simulation-core default map is `openSea`; the app selects the UI's current tactical map when creating or resetting a scenario. Setup mode allows adding ships, dragging starting positions, right-click selection, box selection, and keyboard deletion. Placement rejects land, dragging keeps the last valid water position, duplication/restores normalize into open water, and setup-only map changes reseat the existing forces onto deterministic water starts for the selected terrain. The simulation can run only when at least one alive Blue and one alive Red ship exist.
+New scenarios begin in `setup`. The app's default scenario now loads the supplied 4v4 East China Sea template, while the lower-level `createScenario` helper remains available for compact setup tests and custom starts. The simulation-core default map is `openSea`; the app selects the UI's current tactical map when creating or resetting a scenario. Setup mode allows adding units, dragging starting positions, right-click selection, box selection, and keyboard deletion. Placement is domain-aware: **sea units require water and fixed ground emplacements require land** (the terrain-less open-sea map accepts ground units anywhere). Dragging keeps the last valid position for the unit's domain, sea-unit duplication/restores normalize into open water while ground units stay on land, and setup-only map changes reseat the **sea** forces onto deterministic water starts while leaving fixed emplacements in place. The simulation can run only when at least one alive Blue and one alive Red unit exist.
 
 ## Visual Config
 
@@ -272,7 +273,7 @@ false; `selfDestructOnTargetLoss` sets the in-flight target-loss policy;
 
 ## Ship Classes
 
-Four ship classes are modelled, each with per-class physics, sensors, magazine capacity, damage resilience, and combat systems:
+Four naval hull classes are modelled, each with per-class physics, sensors, magazine capacity, damage resilience, and combat systems:
 
 | Hull | Class | Prefix | VLS | Speed | Turn | DR | CIWS | AAW Channels |
 |------|-------|--------|-----|-------|------|-----|------|-------------|
@@ -281,8 +282,17 @@ Four ship classes are modelled, each with per-class physics, sensors, magazine c
 | BBG | Trump Arsenal Battleship | BBG | 288 | 24kn | 1.2°/s | 5 | 5× CIWS | 6/4/4 |
 | FFG | Constellation Frigate | FFG | 32 | 26kn | 3.2°/s | 1 | 1× SeaRAM | 1/1/1 |
 
+Three fixed ground emplacement classes share the same object shape but set `domain: "ground"`, `isFixed: true`, and zero speed. They are placed on land, never move, and carry an explicit type-specific magazine rather than a VLS-scaled loadout:
+
+| Hull | Role | Prefix | Radar | Default loadout |
+|------|------|--------|------:|-----------------|
+| SAM | coastal surface-to-air battery | SAM | 160 nm | SM-2MR×32, SM-6×8, ESSM×16 |
+| CDB | coastal anti-ship battery (OTH radar) | CDB | 250 nm | MaritimeStrike×32, TomahawkBlockV×8 |
+| EWR | early-warning radar (no weapons) | EWR | 400 nm | — |
+
 Key per-class fields on every ship object:
-- `hull` — class key (`"DDG"`, `"CCG"`, `"BBG"`, `"FFG"`)
+- `hull` — class key (`"DDG"`, `"CCG"`, `"BBG"`, `"FFG"`, `"SAM"`, `"CDB"`, `"EWR"`)
+- `domain` / `isFixed` — `"ground"` + `true` for stationary land emplacements
 - `vlsCells` / `vlsStrikeCells` — total and strike-length VLS capacity
 - `damageResist` — whole-hit damage points before mission-kill
 - `damageDegrade` — speed/manoeuvre penalty per damage point

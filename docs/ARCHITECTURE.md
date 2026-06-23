@@ -11,21 +11,21 @@ The implemented stack uses static HTML, CSS, and JavaScript with a deterministic
 - `src/world/terrain.js` is the shared low-level terrain module. It owns the tactical-map geometry, projection, and binary water/land queries that both the UI and the simulation consume.
 - Scenario setup, save/load, copyable logs, and after-action export are handled through helpers in `src/sim/scenario.js` and `src/sim/events.js`.
 - `server.mjs` serves the app locally at `http://127.0.0.1:4173`, binds to Railway's injected host/port in deployment, and exposes `/health` for platform checks.
-- `tests/sim.test.mjs` verifies deterministic and rules-level behavior with Node's built-in test runner.
+- `tests/` verifies deterministic and rules-level behavior with Node's built-in test runner — `sim.test.mjs` (core rules), `ui.test.mjs` (presentation helpers), `ground-units.test.mjs` (land emplacements), `performance-regressions.test.mjs` (complexity guard), plus map/font/i18n cases.
 - `docs/DATA_MODEL.md` records the current object shapes and unit conventions.
 
 ## Core Boundaries
 
 The simulation is intentionally separated into truth, perception, decision, and presentation concerns.
 
-- Truth: actual ship and missile positions, health, impact resolution.
+- Truth: actual ship and missile positions, health, impact resolution. Fixed land emplacements (`domain: "ground"`, `isFixed: true` — the SAM, CDB, and EWR types) are modeled as stationary ship-entities, so they sense, share, fire, take damage, and are targeted through this same pipeline without a parallel code path; they simply never move and must be placed on land.
 - Perception: radar scans create hostile track files with quality, age, and uncertainty. Friendly and self state is known directly and is not duplicated into radar/CEC track maps.
 - Decision: ship movement is per-unit (with formation station-keeping for non-guide units and retreat behavior for strike-empty units), while air defence is run as a force — a dynamically designated command hierarchy (OTC / AAWC), AAW sector responsibility, and a force-level fire planner allocate interceptors and salvos using a fused Cooperative Engagement (CEC) track picture, inbound threats, active and queued missiles, magazine state, and rules of engagement. Defensive orders are prioritized in the launch scheduler and use their own reaction/cadence gates so strike salvos cannot block urgent self-defence. Inbound defense uses the freshest local or shared missile track available to the force rather than waiting on a slower composite refresh.
 - Presentation: the UI displays selected-unit tracks and uncertainty instead of giving every unit omniscient targeting data.
 
 Scenarios move through three modes:
 
-- `setup`: ships can be added, dragged, selected by right-click or box select, and deleted with keyboard commands. Placement is rejected on land, dragging holds the last valid water position, and map changes are only allowed here.
+- `setup`: units can be added, dragged, selected by right-click or box select, and deleted with keyboard commands. Placement is domain-aware (sea units on water, ground emplacements on land), dragging holds the last valid position for the unit's domain, and map changes are only allowed here.
 - `running`: the deterministic simulation advances.
 - `ended`: one side has no surviving ship and the battle is frozen.
 
@@ -44,7 +44,7 @@ The canvas renderer draws the tactical map in this order:
 
 Ships and missiles use tactical scaling: their symbols shrink and grow with zoom, with a very small minimum size so they remain visible without dominating the map. Hit testing is intentionally larger than the rendered symbol so wide-zoom selection remains practical. Labels stay screen-sized, reduced, and fade at wide zoom unless they are critical.
 
-The WEZ layer defaults to all-unit rings and can be changed to selected-only or disabled. Rings are super thin but kept visible for every ship regardless of side color. Large TLAM/MSTK rings are still rendered from world scale; selected labels are clamped to the viewport edge so they remain inspectable when the actual ring edge falls outside the screen.
+The WEZ layer defaults to all-unit rings and can be changed to selected-only or disabled. Rings are super thin but kept visible for every ship regardless of side color. Overlapping rings of the **same weapon type and faction** are merged into a single union outline (each ring is stroked clipped to the region outside its same-type neighbours, so the internal crossing arcs disappear); rings of a different weapon or faction never merge, and style/colour/dash are unchanged. Large TLAM/MSTK rings are still rendered from world scale; selected labels are clamped to the viewport edge so they remain inspectable when the actual ring edge falls outside the screen.
 
 The lower-left footer shows a one-line side summary for ship counts, hitpoints, and in-air missile roles. Ship addition is a setup-only action; the BLUE/RED placement controls are disabled once the scenario is running.
 
@@ -94,6 +94,7 @@ This is not a clone of DCS UI assets or icons.
 - The force picture refreshes fully every 0.5 seconds and incrementally updates dirty contacts directly through the reverse contact-holder index after sensor/CEC changes. Sensor scans use an adaptive spatial grid when contacts are spread over a large area.
 - The renderer caches stable panel/detail markup and weapon-range metadata, uses indexed missile-target lookup, spatial label clustering, and viewport culling. These optimizations do not change simulation tick order or UI controls.
 - `npm run bench` measures simulation throughput; `npm run bench:frontend` measures the isolated high-density rendering helpers.
+- A machine-independent **complexity score** (`scripts/perf-harness.mjs`) measures the ratio of per-tick cost at two force sizes (~1.0 linear, ~5.0 quadratic). `tests/performance-regressions.test.mjs` asserts it under a ceiling so an accidental O(n²) hot loop fails CI; `npm run bench` prints the same score.
 
 ### UI: Ship Detail Overlay
 - `shipDetailOverlay` — dynamically created fixed-position DOM element

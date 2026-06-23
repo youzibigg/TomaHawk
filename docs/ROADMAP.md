@@ -34,12 +34,19 @@
 - Known-seed end-to-end battle regression test.
 - Event log and compact fleet inventory panel.
 - CCG, BBG, and FFG ship classes alongside DDG.
+- Three fixed land emplacements — SAM (coastal air defence), CDB (coastal anti-ship with over-the-horizon radar), and EWR (early-warning radar) — that sense, share, fire, and are targeted through the ship pipeline but never move.
+- Selectable tactical maps (Open Sea, projected East China Sea coastline) with kilometre coordinates, a 20 km grid, and a dynamic scale bar.
+- Terrain-aware navigation: coastal detours and swept-segment land-collision guards; domain-aware placement (sea units on water, ground units on land).
+- Force Inventory split into per-faction naval and ground sub-tables with unique unit tags and distinct map glyphs.
+- Overlapping same-type, same-faction weapon-range rings merged into a single coverage outline.
+- Full English/中文 UI with a one-click language toggle; one-click Railway deployment.
 - SM-6 dual-role missile support in offensive and defensive planning.
 - Subsystem damage model across radar, VLS, propulsion, fire control, CIWS, and CIC.
 - Radar horizon modeling and hostile missile radar detection.
 - Ship detail popup with compact subsystem health cards.
 - Pre-computed indexes for hot-path functions.
-- Large-battle performance headroom with 8,300+ ticks/sec on a 4v4 seed.
+- Machine-independent complexity-score performance-regression guard in the test suite.
+- Large-battle performance headroom with thousands of ticks/sec on multi-ship seeds.
 
 ## Current Defaults
 

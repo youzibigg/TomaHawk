@@ -1,6 +1,6 @@
 # TomaHawk / 战斧 — Full Reference / 完整参考手册
 
-Detailed bilingual manual for the `v0.1` release. The top-level `README.md` is a
+Detailed bilingual manual for the `v0.2` release. The top-level `README.md` is a
 concise overview; this file holds the full capability, architecture, data-model,
 and operator detail. 顶层 `README.md` 为简明概览，本文件提供完整的能力、架构、数据模型与操作细节。
 
@@ -25,7 +25,7 @@ The project is intentionally local and dependency-light so it remains easy to
 inspect, extend, and eventually replace with a lower-level simulation core if
 desired.
 
-### 2. Core capabilities in `v0.1`
+### 2. Core capabilities in `v0.2`
 
 #### Simulation and doctrine
 - Deterministic simulation loop with seeded RNG.
@@ -34,6 +34,11 @@ desired.
 - Autonomous doctrine for both sides.
 - Force-level command posture, offensive fire planning, and defensive fire allocation.
 - Rules of engagement (`free`, `tight`, `hold`) with self-defense always permitted.
+
+#### Terrain, maps, and ground forces
+- Selectable tactical maps: a border-less **Open Sea** and a projected **East China Sea** coastline layer (Natural Earth 1:10m).
+- Binary water/land terrain shared by the renderer and the simulation: coastal detour navigation, swept-segment land-collision guards, and placement validation.
+- Three fixed land-based emplacement types — **SAM** (coastal air defence), **CDB** (coastal anti-ship battery with an over-the-horizon targeting radar), and **EWR** (long-range early-warning radar) — that sense, share, fire, and are targeted through the same pipeline as ships, but never move.
 
 #### Sensors and information quality
 - Radar-generated tracks with quality, uncertainty, age, and source metadata.
@@ -100,6 +105,18 @@ Current hull catalog in `src/sim/ships.js`:
 | `BBG` | arsenal battleship concept approx. | 288 | 24 kn | extreme magazine depth |
 | `FFG` | Constellation-class frigate approx. | 32 | 26 kn | lighter, agile escort |
 
+Fixed ground emplacements (`domain: "ground"`, `isFixed: true`, speed 0):
+
+| Unit | Role | Radar | Weapons |
+| --- | --- | ---: | --- |
+| `SAM` | coastal surface-to-air battery | 160 nm | `SM-2MR`, `SM-6`, `ESSM` |
+| `CDB` | coastal anti-ship battery | 250 nm (OTH) | `MaritimeStrike`, `TomahawkBlockV` |
+| `EWR` | early-warning radar (no weapons) | 400 nm | — |
+
+Ground units must be placed on land, never move, never act as the formation
+guide, and are never re-seated to water; they otherwise share the ship object
+shape, the CEC picture, and the engagement pipeline.
+
 Each ship instance includes:
 - kinematics,
 - radar state,
@@ -137,9 +154,9 @@ transition, guidance style, and reserve behavior.
 ### 6. UI controls and operator workflow
 
 #### Setup mode
-- Left-click with `BLUE` or `RED` tool selected to place ships.
-- Select hull type with the ship-class dropdown (`DDG`, `CCG`, `BBG`, `FFG`).
-- Left-drag ships to reposition them during setup.
+- Left-click with `BLUE` or `RED` tool selected to place units.
+- Select the unit type from the class dropdown — **Naval** (`DDG`, `CCG`, `BBG`, `FFG`) or **Ground** (`SAM`, `CDB`, `EWR`). Sea units must be placed on water and ground units on land.
+- Left-drag units to reposition them during setup (sea units stay on water, ground units stay on land).
 - Right-click ship to select it.
 - Right-drag/right-click selection supports additive detail-card selection.
 - Right-drag on empty map creates a box selection.
@@ -166,7 +183,7 @@ transition, guidance style, and reserve behavior.
 - Public-source estimates are preferred over exact or sensitive values.
 - The current implementation is intentionally single-process and local.
 - There is no backend persistence layer beyond exported JSON files.
-- Terrain is geographically sourced and projected but remains a UI framework: a reusable land query exists, while simulation movement does not yet enforce land collision or avoidance.
+- Terrain is geographically sourced and projected, and the simulation now enforces it: a shared binary water/land query drives setup placement, coastal detour navigation, and swept-segment land-collision guards. There is still no shallow/deep-water model — navigability is simply water vs. not-water.
 - The docs describe the current implementation and release label only.
 
 ### 8. Contribution notes
@@ -193,7 +210,7 @@ TomaHawk 是仓库名，应用内部与运行时名称为 **战斧**。它是一
 - 使用极小的 Node HTTP 服务进行本地托管；
 - 使用 Node 内置测试框架验证规则与回归行为。
 
-### 2. `v0.1` 当前能力
+### 2. `v0.2` 当前能力
 
 #### 仿真与决策
 - 基于种子的确定性仿真循环。
@@ -202,6 +219,11 @@ TomaHawk 是仓库名，应用内部与运行时名称为 **战斧**。它是一
 - 蓝红双方均由自主 doctrine 驱动。
 - 力量级别的进攻规划、空防规划与指挥姿态评估。
 - 支持 `free`、`tight`、`hold` 三级交战规则，且始终允许自卫。
+
+#### 地形、地图与陆基力量
+- 可选战术地图：无边界的**开放海域**，以及投影后的**东海**海岸线图层（Natural Earth 1:10m）。
+- 渲染与仿真共享“水/陆”二元地形：沿岸绕行导航、连续扫掠的陆地碰撞防护，以及部署校验。
+- 三种固定式陆基阵地——**SAM**（岸基防空）、**CDB**（带超视距目标雷达的岸基反舰）、**EWR**（远程预警雷达）——与舰艇走同一套感知、共享、开火与被打击流程，但永不移动。
 
 #### 传感器与信息质量
 - 雷达生成的航迹包含质量、误差、不确定性、时效与来源信息。
@@ -257,6 +279,17 @@ TomaHawk 是仓库名，应用内部与运行时名称为 **战斧**。它是一
 | `BBG` | Arsenal Battleship 概念近似型 | 288 | 24 节 | 超大弹药深度 |
 | `FFG` | Constellation 护卫舰近似型 | 32 | 26 节 | 轻型灵活护航 |
 
+固定式陆基阵地（`domain: "ground"`、`isFixed: true`、航速为 0）：
+
+| 单位 | 定位 | 雷达 | 武器 |
+| --- | --- | ---: | --- |
+| `SAM` | 岸基防空阵地 | 160 海里 | `SM-2MR`、`SM-6`、`ESSM` |
+| `CDB` | 岸基反舰阵地 | 250 海里（超视距） | `MaritimeStrike`、`TomahawkBlockV` |
+| `EWR` | 预警雷达（无武器） | 400 海里 | — |
+
+陆基单位必须部署在陆地，永不移动、不担任编队指挥、也不会被重置到水面；其余方面与
+舰艇共享对象结构、CEC 态势图与交战流程。
+
 每个舰艇对象都包含：
 - 机动参数；
 - 雷达状态；
@@ -293,9 +326,9 @@ TomaHawk 是仓库名，应用内部与运行时名称为 **战斧**。它是一
 ### 6. UI 控制与操作方式
 
 #### 场景准备阶段
-- 选中 `BLUE` 或 `RED` 后左键点击地图放置舰艇。
-- 通过舰型下拉框选择 `DDG`、`CCG`、`BBG`、`FFG`。
-- 在 `setup` 模式下可左键拖动舰艇调整初始位置。
+- 选中 `BLUE` 或 `RED` 后左键点击地图放置单位。
+- 通过类别下拉框选择**海上**（`DDG`、`CCG`、`BBG`、`FFG`）或**陆基**（`SAM`、`CDB`、`EWR`）单位；海上单位必须放在水面，陆基单位必须放在陆地。
+- 在 `setup` 模式下可左键拖动单位调整初始位置（海上单位保持在水面，陆基单位保持在陆地）。
 - 右键舰艇进行选择。
 - 右键拖动/右键选择可叠加详情卡选择。
 - 在空白区域右键拖动可框选。
@@ -332,7 +365,7 @@ TomaHawk 是仓库名，应用内部与运行时名称为 **战斧**。它是一
 
 - 本项目是公开信息驱动的近似仿真，不是权威军事模型。
 - 参数应优先使用公开来源与明确的不确定性说明。
-- 地形已采用真实地理数据和投影，但仍属于 UI 基础框架：已提供可复用的陆地点查询，仿真机动尚未执行陆地碰撞或避障。
+- 地形已采用真实地理数据和投影，且仿真已实际执行：共享的“水/陆”二元查询驱动部署校验、沿岸绕行导航与连续扫掠的陆地碰撞防护。仍无深浅水模型——可航性只是“水/非水”。
 - 当前实现刻意保持单进程、本地运行。
 - 除导出的 JSON 外，没有后端持久化层。
 - 文档仅描述当前实现，不包含前瞻性设计记录。

@@ -24,7 +24,7 @@ as-is and run as native ES modules in the browser and in Node.
 | `math.js` | geometry, kinematics, `interceptPoint`, `Rng` |
 | `events.js` | event-log append, severity, time formatting |
 | `missiles.js` | `MISSILES` catalogue, display helpers, `battleSummaryCounts` |
-| `ships.js` | `SHIP_CLASSES`, ship factory, loadout/ROE, hull-id counter |
+| `ships.js` | `SHIP_CLASSES` (four naval hulls + three fixed ground emplacements SAM/CDB/EWR via `domain`/`isFixed`), ship factory, loadout/ROE, hull-id counter |
 | `sensors.js` | hostile radar detection, lazy track ageing/pruning, centralized CEC sharing, adaptive spatial scan index |
 | `command.js` | fused force picture + fleet command posture (OTC/AAWC, modes) |
 | `movement.js` | ship motion integration, terrain-aware detours, per-unit movement decisions |
@@ -39,13 +39,18 @@ as-is and run as native ES modules in the browser and in Node.
   because they execute at runtime, after all modules load.
 - **Add a new public symbol** → export it from its module, then add the module
   to the `export *` list in `sim.js` if it is a new file.
-- **Where things go:** new missile → `missiles.js`; new hull → `ships.js`;
-  new sensor/track rule → `sensors.js`; AI posture → `command.js`; weapon
-  logic/guidance → `combat.js`; save-format field → `scenario.js`.
+- **Where things go:** new missile → `missiles.js`; new hull or ground
+  emplacement → `ships.js`; new sensor/track rule → `sensors.js`; AI posture →
+  `command.js`; weapon logic/guidance → `combat.js`; save-format field or
+  placement/terrain rule → `scenario.js`; map geometry / water-land query →
+  `world/terrain.js`.
 - **Keep it deterministic.** Same seed + inputs ⇒ same result. Route all
   randomness through `sim.rng` (the seeded `Rng`), never `Math.random()`.
 - **Verify with `npm test`** after any change to `sim/` or `ui/`.
-- **`npm run bench`** reports ticks/sec by battle size and re-checks determinism;
+- **`npm run bench`** reports ticks/sec by battle size, re-checks determinism,
+  and prints the machine-independent complexity score (`scripts/perf-harness.mjs`);
+  `tests/performance-regressions.test.mjs` asserts that score so an accidental
+  O(n²) hot loop fails CI.
 - **`npm run bench:frontend`** measures dense target lookup, label clustering,
   and stable inventory-frame work;
   CI (`.github/workflows/ci.yml`) runs `npm test` on every push/PR.

@@ -25,7 +25,7 @@ Use this file to route yourself to the smallest relevant part of the repository 
 - `math.js` — geometry, kinematics, `interceptPoint`, `Rng`.
 - `events.js` — event-log append/severity, `formatTime`/`formatLogLines`.
 - `missiles.js` — `MISSILES` catalogue, `missileSymbol`/`missileDisplayRole`, `battleSummaryCounts`.
-- `ships.js` — `SHIP_CLASSES`, ship factory, loadout/ROE helpers, hull-id counter.
+- `ships.js` — `SHIP_CLASSES` (four naval hulls + three fixed ground emplacements SAM/CDB/EWR with `domain`/`isFixed`), ship factory, loadout/ROE helpers, hull-id counter.
 - `sensors.js` — radar detection, `missileDetectionEnvelope`, track ageing/pruning/sharing.
 - `command.js` — fused force picture (`buildForcePicture`/`forceTrack`) + fleet command posture.
 - `movement.js` — `moveShips`, `decideShip`.
@@ -137,6 +137,29 @@ change is free.
 - If a regression is intended/unavoidable, say so explicitly and justify it
   rather than silently letting the score rise.
 
+## Versioning and changelog (required when bumping the version)
+
+When the user asks to bump the version (e.g. `v0.1` → `v0.2`), the `CHANGELOG.md`
+entry must describe **everything added since the previous version, not just the
+change you happened to make this session**.
+
+- **The changelog entry is release-scoped, not session-scoped.** If you only
+  added one feature but are asked to cut a new version, the entry must still list
+  *all* features, changes, and fixes accumulated since the last version heading —
+  yours and every prior agent's. Reconstruct the full delta from `git log`
+  (commits since the last version tag/commit), the stale `Unreleased`/working
+  notes, and the actual diff of the docs/code versus the previous release.
+- **Keep version strings in sync.** A version bump touches `package.json`
+  (`version`), `index.html` (the brand wordmark and the about-overlay subtitle),
+  and `src/ui/lang.js` (`about.subtitle`, both `en` and `zh`). Update the release
+  references in `README.md` and `docs/REFERENCE.md` too.
+- **Bilingual coherence is required.** The changelog and the bilingual docs
+  (`README.md`, `docs/REFERENCE.md`) must read naturally and stay consistent in
+  **both** the English and the 中文 sections — translate meaning, do not leave one
+  side stale or machine-literal.
+- Organize the entry (Added / Changed / Fixed / Documentation) and keep the prior
+  version sections below the new one. Verify with `npm test` before finishing.
+
 ## High-signal file routing by problem type
 
 | Problem | Read first | Then read if needed |
@@ -146,6 +169,9 @@ change is free.
 | Radar/tracks/CEC | `src/sim/sensors.js`, `src/sim/command.js` | `docs/DATA_MODEL.md`, tests |
 | Command posture / AI aggression | `src/sim/command.js` | `tests/sim.test.mjs`, `docs/SIMULATION_ASSUMPTIONS.md` |
 | Missile or ship catalogue/stats | `src/sim/missiles.js`, `src/sim/ships.js` | `docs/DATA_MODEL.md` |
+| Ground emplacements (SAM/CDB/EWR), `isFixed`/`domain` units | `src/sim/ships.js`, `src/sim/scenario.js` | `tests/ground-units.test.mjs`, `src/sim/command.js`, `src/sim/movement.js` |
+| Terrain, maps, land/water placement, coastal navigation | `src/world/terrain.js`, `src/sim/scenario.js`, `src/sim/movement.js` | `docs/MAP_DATA.md`, `src/world/map-spec.js` |
+| Performance / complexity score | `scripts/perf-harness.mjs`, `tests/performance-regressions.test.mjs` | `scripts/bench.mjs` |
 | Save/load/AAR/log export | `src/sim/scenario.js`, `src/sim/events.js` | `src/app.js`, tests |
 | The tick order of operations | `src/sim/step.js` | the called modules |
 | Tactical map drawing | `src/app.js` draw functions | `src/styles.css`, `index.html` |
